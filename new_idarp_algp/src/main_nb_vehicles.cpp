@@ -102,7 +102,7 @@ int main(int argc, char* argv[]) {
 
     instance.configurePublicTransport(conf.waitingTime(), conf.minimumTimeInTransit());
     instance.configureWalk(conf.walkThreshold());
-    instance.precomputeAccessOptions();
+    instance.precomputeAccessOptions(conf.nbPtOptions());
     instance.setNbVehicles(instance.nbRequests() - 1);
 
     int timeLimit = 10*60;

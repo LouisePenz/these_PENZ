@@ -5,3 +5,4 @@ upper_bound_RRT: 48
 lower_bound_RRT: 46
 rate_RRT: 1.6915
 update_iteration: 107
+nb_pt_options: 9

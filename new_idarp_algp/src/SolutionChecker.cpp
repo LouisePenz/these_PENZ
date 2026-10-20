@@ -238,8 +238,11 @@ static int checkSchedule(const Solution& scheduled, const std::string& label, st
             if (pickup.route == stopAfter.route) log.add("both legs of a transfer on the same vehicle", req(requestId));
             if (pickup.pointId != request.pickupId() || delivery.pointId != request.deliveryId())
                 log.add("pickup/delivery at the wrong point", req(requestId));
-            if (!contains(pt.stopsBefore(), stopBefore.pointId) || !contains(pt.stopsAfter(), stopAfter.pointId))
-                log.add("PT stop not among the request's candidates",
+            bool candidatePair = std::any_of(pt.pairs().begin(), pt.pairs().end(), [&](const StopPair& p) {
+                return p.stopBefore == stopBefore.pointId && p.stopAfter == stopAfter.pointId;
+            });
+            if (!candidatePair)
+                log.add("PT stop pair not among the request's candidates",
                         req(requestId) + ": stops " + std::to_string(stopBefore.pointId) + " -> " +
                             std::to_string(stopAfter.pointId));
 

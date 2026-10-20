@@ -47,6 +47,7 @@ ConfLNS::ConfLNS(const std::string& searchConfigFile, const std::string& instanc
     lowerBoundRRT_ = std::stoi(searchConfig.at("lower_bound_RRT"));
     rateRRT_ = std::stof(searchConfig.at("rate_RRT"));
     updateIteration_ = std::stoi(searchConfig.at("update_iteration"));
+    nbPtOptions_ = std::stoi(searchConfig.at("nb_pt_options"));
 
     std::map<std::string, std::string> instanceConfig = parseKeyValueFile(instanceConfigFile);
     waitingTime_ = std::stoi(instanceConfig.at("waiting_time"));

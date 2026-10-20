@@ -144,46 +144,39 @@ void RequestInsertionSearch::collectTransfer(const Solution& solution, int reque
 
     RouteStop pickup = makePickupTemplate(req, requestId);
     RouteStop delivery = makeDeliveryTemplate(req, requestId);
-    int maxRideTimeFirstLeg = instance.maxRideTimeFirstLeg(requestId);
-    int maxRideTimeLastLeg = instance.maxRideTimeLastLeg(requestId);
-
-    for (int entryStop : req.ptAccess().stopsBefore()) {
-        RouteStop stopBefore = makePtStopTemplate(req, requestId, StopRole::StopBefore, entryStop,
-                                                  req.ptAccess().windowForStopBefore(entryStop));
+    // Each pair has its own windows and leg maximum ride times, so both leg
+    // lists are generated per pair.
+    for (const StopPair& pair : req.ptAccess().pairs()) {
+        RouteStop stopBefore =
+            makePtStopTemplate(req, requestId, StopRole::StopBefore, pair.stopBefore, pair.windowBefore);
         std::vector<InsertionEvaluator::InsertionResult> firstLegs;
         for (int r = 0; r < solution.nbRoutes(); ++r) {
-            auto cands = evaluator_.generateCandidates(solution, r, pickup, stopBefore, maxRideTimeFirstLeg);
+            auto cands = evaluator_.generateCandidates(solution, r, pickup, stopBefore, pair.maxRideTimeFirstLeg);
             firstLegs.insert(firstLegs.end(), cands.begin(), cands.end());
         }
         if (firstLegs.empty()) continue;
 
-        for (int exitStop : req.ptAccess().stopsAfter()) {
-            // stopsBefore/stopsAfter are separate lists: not every combination is a valid pair.
-            if (!instance.isValidStopPair(requestId, entryStop, exitStop)) continue;
-            int ptTime = instance.travelTimes().publicTransportTime(entryStop, exitStop);
-            RouteStop stopAfter = makePtStopTemplate(req, requestId, StopRole::StopAfter, exitStop,
-                                                     instance.stopAfterWindow(requestId, entryStop, exitStop));
-            std::vector<InsertionEvaluator::InsertionResult> lastLegs;
-            for (int r = 0; r < solution.nbRoutes(); ++r) {
-                auto cands = evaluator_.generateCandidates(solution, r, stopAfter, delivery, maxRideTimeLastLeg);
-                lastLegs.insert(lastLegs.end(), cands.begin(), cands.end());
-            }
+        RouteStop stopAfter = makePtStopTemplate(req, requestId, StopRole::StopAfter, pair.stopAfter, pair.windowAfter);
+        std::vector<InsertionEvaluator::InsertionResult> lastLegs;
+        for (int r = 0; r < solution.nbRoutes(); ++r) {
+            auto cands = evaluator_.generateCandidates(solution, r, stopAfter, delivery, pair.maxRideTimeLastLeg);
+            lastLegs.insert(lastLegs.end(), cands.begin(), cands.end());
+        }
 
-            for (const auto& first : firstLegs) {
-                for (const auto& last : lastLegs) {
-                    if (first.routeIndex == last.routeIndex) continue;  // never the same vehicle for both legs
-                    if (!evaluator_.admitsTransfer(solution, first, pickup, stopBefore, last, stopAfter, delivery,
-                                                   ptTime, req.maxRideTime()))
-                        continue;
-                    RequestInsertionCandidate c;
-                    c.requestId = requestId;
-                    c.cost = first.cost + last.cost;
-                    c.isTransfer = true;
-                    c.leg1 = {first.routeIndex, pickup, stopBefore, first.posPickup, first.posDelivery};
-                    c.leg2 = {last.routeIndex, stopAfter, delivery, last.posPickup, last.posDelivery};
-                    c.ptTravelTime = ptTime;
-                    out.push_back(c);
-                }
+        for (const auto& first : firstLegs) {
+            for (const auto& last : lastLegs) {
+                if (first.routeIndex == last.routeIndex) continue;  // never the same vehicle for both legs
+                if (!evaluator_.admitsTransfer(solution, first, pickup, stopBefore, last, stopAfter, delivery,
+                                               pair.ptTravelTime, req.maxRideTime()))
+                    continue;
+                RequestInsertionCandidate c;
+                c.requestId = requestId;
+                c.cost = first.cost + last.cost;
+                c.isTransfer = true;
+                c.leg1 = {first.routeIndex, pickup, stopBefore, first.posPickup, first.posDelivery};
+                c.leg2 = {last.routeIndex, stopAfter, delivery, last.posPickup, last.posDelivery};
+                c.ptTravelTime = pair.ptTravelTime;
+                out.push_back(c);
             }
         }
     }

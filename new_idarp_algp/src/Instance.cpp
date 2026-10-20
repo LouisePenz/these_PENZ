@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <tuple>
 
 Instance::Header Instance::readHeader(const std::string& filename) {
     std::ifstream file(filename, std::ios::in);
@@ -62,9 +63,9 @@ void Instance::configurePublicTransport(int waitingTime, int minimumTimeInTransi
 
 void Instance::configureWalk(int walkThreshold) { travelTimes_.setWalkThreshold(walkThreshold); }
 
-void Instance::precomputeAccessOptions() {
-    computeStopsBeforeAndAfter();
-    computeWalkData();
+void Instance::precomputeAccessOptions(int maxPtOptions) {
+    computeStopPairs(maxPtOptions);
+    computeWalkData(maxPtOptions);
 }
 
 bool Instance::isStopPairFeasible(int req, int stopBefore, int stopAfter) const {
@@ -83,98 +84,54 @@ bool Instance::isValidStopPair(int req, int stopBefore, int stopAfter) const {
            accessCost < travelTimes_.driveTime(r.pickupId(), r.deliveryId());
 }
 
-TimeWindow Instance::stopAfterWindow(int req, int stopBefore, int stopAfter) const {
-    const Request& r = requests_[req];
-    TimeWindow w;
-    w.lowerBound = r.pickupWindow().lowerBound + r.loadingTime() + travelTimes_.driveTime(r.pickupId(), stopBefore) +
-                   r.loadingTime() + travelTimes_.publicTransportTime(stopBefore, stopAfter);
-    w.upperBound = r.deliveryWindow().upperBound - r.loadingTime() - travelTimes_.driveTime(stopAfter, r.deliveryId());
-    return w;
-}
-
-void Instance::computeStopsBeforeAndAfter() {
+void Instance::computeStopPairs(int maxPairs) {
     int firstStop = 1 + 2 * registry_.nbRequests();
     int lastStop = firstStop + registry_.nbStops();
 
     for (int req = 0; req < nbRequests(); ++req) {
         Request& r = requests_[req];
-        std::vector<int> stopsBefore, stopsAfter;
-        // (stopBefore, stopAfter) -> cost of that travel, kept only if it beats the direct trip.
-        std::vector<std::pair<std::pair<int, int>, int>> possibleStops;
-
-        for (int sb = firstStop; sb < lastStop; ++sb) {
-            for (int sa = firstStop; sa < lastStop; ++sa) {
-                if (isValidStopPair(req, sb, sa)) {
-                    int cost = travelTimes_.driveTime(r.pickupId(), sb) + travelTimes_.driveTime(r.deliveryId(), sa);
-                    possibleStops.push_back({{sb, sa}, cost});
-                }
-            }
-        }
-        std::sort(possibleStops.begin(), possibleStops.end(),
-                  [](const auto& a, const auto& b) { return a.second < b.second; });
-
-        // Keep (up to) the 3 best stops before and the 3 best stops after, picked
-        // greedily from the same cost-sorted pool (not two independent top-3 searches).
-        size_t x = 0;
-        while (x < possibleStops.size() && (stopsBefore.size() < 3 && stopsAfter.size() < 3)) {
-            int sb = possibleStops[x].first.first;
-            int sa = possibleStops[x].first.second;
-            if (std::find(stopsBefore.begin(), stopsBefore.end(), sb) == stopsBefore.end())
-                stopsBefore.push_back(sb);
-            if (std::find(stopsAfter.begin(), stopsAfter.end(), sa) == stopsAfter.end())
-                stopsAfter.push_back(sa);
-            ++x;
-        }
-        r.ptAccess().setStopsBefore(stopsBefore);
-        r.ptAccess().setStopsAfter(stopsAfter);
-
-        if (stopsBefore.empty()) continue;
-
+        int L = r.loadingTime();
         int ltwP = r.pickupWindow().lowerBound;
         int utwD = r.deliveryWindow().upperBound;
-        int loadingTime = r.loadingTime();
 
-        TimeWindow aggregateBefore{horizonTime_, 0};
-        TimeWindow aggregateAfter{horizonTime_, 0};
-
-        for (int sb : stopsBefore) {
-            TimeWindow w;
-            w.lowerBound = ltwP + loadingTime + travelTimes_.driveTime(r.pickupId(), sb);
-            w.upperBound = 0;
-            for (int sa : stopsAfter) {
-                if (isValidStopPair(req, sb, sa)) {
-                    int utw = utwD - loadingTime - travelTimes_.driveTime(sa, r.deliveryId()) - loadingTime -
-                              travelTimes_.publicTransportTime(sb, sa);
-                    if (utw > w.upperBound) w.upperBound = utw;
-                }
+        // Every valid pair, with its derived data. Times are service start
+        // times; the request spends L at pickup, stopBefore (alighting) and
+        // stopAfter (boarding) within its ride time.
+        struct Ranked {
+            int accessCost;
+            StopPair pair;
+        };
+        std::vector<Ranked> valid;
+        for (int sb = firstStop; sb < lastStop; ++sb) {
+            for (int sa = firstStop; sa < lastStop; ++sa) {
+                if (!isValidStopPair(req, sb, sa)) continue;
+                int toStop = travelTimes_.driveTime(r.pickupId(), sb);
+                int fromStop = travelTimes_.driveTime(sa, r.deliveryId());
+                StopPair p;
+                p.stopBefore = sb;
+                p.stopAfter = sa;
+                p.ptTravelTime = travelTimes_.publicTransportTime(sb, sa);
+                p.windowBefore = {ltwP + L + toStop, utwD - L - fromStop - L - p.ptTravelTime};
+                p.windowAfter = {ltwP + L + toStop + L + p.ptTravelTime, utwD - L - fromStop};
+                p.maxRideTimeFirstLeg = r.maxRideTime() - 2 * L - p.ptTravelTime - fromStop;
+                p.maxRideTimeLastLeg = r.maxRideTime() - 2 * L - toStop - p.ptTravelTime;
+                if (p.windowBefore.lowerBound > p.windowBefore.upperBound) continue;  // no time for the whole trip
+                valid.push_back({toStop + travelTimes_.driveTime(r.deliveryId(), sa), p});
             }
-            r.ptAccess().setWindowForStopBefore(sb, w);
-            if (w.upperBound > aggregateBefore.upperBound) aggregateBefore.upperBound = w.upperBound;
-            if (w.lowerBound < aggregateBefore.lowerBound) aggregateBefore.lowerBound = w.lowerBound;
         }
 
-        for (int sa : stopsAfter) {
-            TimeWindow w;
-            w.upperBound = utwD - loadingTime - travelTimes_.driveTime(sa, r.deliveryId());
-            w.lowerBound = horizonTime_;
-            for (int sb : stopsBefore) {
-                if (isValidStopPair(req, sb, sa)) {
-                    int ltw = ltwP + loadingTime + travelTimes_.driveTime(r.pickupId(), sb) + loadingTime +
-                              travelTimes_.publicTransportTime(sb, sa);
-                    if (ltw < w.lowerBound) w.lowerBound = ltw;
-                }
-            }
-            r.ptAccess().setWindowForStopAfter(sa, w);
-            if (w.upperBound > aggregateAfter.upperBound) aggregateAfter.upperBound = w.upperBound;
-            if (w.lowerBound < aggregateAfter.lowerBound) aggregateAfter.lowerBound = w.lowerBound;
-        }
-
-        r.ptAccess().setAggregateWindowBefore(aggregateBefore);
-        r.ptAccess().setAggregateWindowAfter(aggregateAfter);
+        // Keep the maxPairs cheapest access legs (ties: stop ids, for reproducibility).
+        std::sort(valid.begin(), valid.end(), [](const Ranked& a, const Ranked& b) {
+            return std::tie(a.accessCost, a.pair.stopBefore, a.pair.stopAfter) <
+                   std::tie(b.accessCost, b.pair.stopBefore, b.pair.stopAfter);
+        });
+        std::vector<StopPair> kept;
+        for (size_t i = 0; i < valid.size() && static_cast<int>(kept.size()) < maxPairs; ++i) kept.push_back(valid[i].pair);
+        r.ptAccess().setPairs(std::move(kept));
     }
 }
 
-void Instance::computeWalkData() {
+void Instance::computeWalkData(int maxStops) {
     int firstStop = 1 + 2 * registry_.nbRequests();
     int lastStop = firstStop + registry_.nbStops();
     int threshold = travelTimes_.walkThreshold();
@@ -218,10 +175,10 @@ void Instance::computeWalkData() {
             }
             std::sort(stopsAfterWalk.begin(), stopsAfterWalk.end(),
                       [](const auto& a, const auto& b) { return a.second < b.second; });
-            // Keep (up to) the 3 closest stops whose derived window isn't empty.
+            // Keep (up to) the maxStops closest stops whose derived window isn't empty.
             std::vector<int> selected;
             TimeWindow aggregate{horizonTime_, 0};
-            for (size_t i = 0; i < stopsAfterWalk.size() && selected.size() < 3; ++i) {
+            for (size_t i = 0; i < stopsAfterWalk.size() && static_cast<int>(selected.size()) < maxStops; ++i) {
                 int s = stopsAfterWalk[i].first;
                 int pt = travelTimes_.publicTransportTime(nearestStopForPickup, s);
                 TimeWindow w;
@@ -261,10 +218,10 @@ void Instance::computeWalkData() {
             }
             std::sort(stopsBeforeWalk.begin(), stopsBeforeWalk.end(),
                       [](const auto& a, const auto& b) { return a.second < b.second; });
-            // Keep (up to) the 3 closest stops whose derived window isn't empty.
+            // Keep (up to) the maxStops closest stops whose derived window isn't empty.
             std::vector<int> selected;
             TimeWindow aggregate{horizonTime_, 0};
-            for (size_t i = 0; i < stopsBeforeWalk.size() && selected.size() < 3; ++i) {
+            for (size_t i = 0; i < stopsBeforeWalk.size() && static_cast<int>(selected.size()) < maxStops; ++i) {
                 int s = stopsBeforeWalk[i].first;
                 int pt = travelTimes_.publicTransportTime(s, nearestStopForDelivery);
                 TimeWindow w;
@@ -292,38 +249,6 @@ void Instance::computeWalkData() {
             r.walkAccess().setSide(WalkSide::None);
         }
     }
-}
-
-// Both legs: the loading times at stopBefore (alighting) and stopAfter
-// (boarding) are spent outside the leg being bounded, hence the 2 * loadingTime.
-int Instance::maxRideTimeFirstLeg(int req) const {
-    const Request& r = requests_[req];
-    if (!r.ptAccess().available()) return -1;
-    int mrt = r.maxRideTime() - 2 * r.loadingTime();
-    int mrtLeg = 0;
-    for (int sb : r.ptAccess().stopsBefore()) {
-        for (int sa : r.ptAccess().stopsAfter()) {
-            if (!isValidStopPair(req, sb, sa)) continue;
-            int candidate = mrt - (travelTimes_.publicTransportTime(sb, sa) + travelTimes_.driveTime(sa, r.deliveryId()));
-            if (candidate > mrtLeg) mrtLeg = candidate;
-        }
-    }
-    return mrtLeg;
-}
-
-int Instance::maxRideTimeLastLeg(int req) const {
-    const Request& r = requests_[req];
-    if (!r.ptAccess().available()) return -1;
-    int mrt = r.maxRideTime() - 2 * r.loadingTime();
-    int mrtLeg = 0;
-    for (int sb : r.ptAccess().stopsBefore()) {
-        for (int sa : r.ptAccess().stopsAfter()) {
-            if (!isValidStopPair(req, sb, sa)) continue;
-            int candidate = mrt - (travelTimes_.publicTransportTime(sb, sa) + travelTimes_.driveTime(r.pickupId(), sb));
-            if (candidate > mrtLeg) mrtLeg = candidate;
-        }
-    }
-    return mrtLeg;
 }
 
 int Instance::maxRideTimeLegWithWalk(int req, int stopId) const {

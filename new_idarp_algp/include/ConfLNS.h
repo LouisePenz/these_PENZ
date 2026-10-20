@@ -39,6 +39,7 @@ public:
     float rateRRT() const noexcept { return rateRRT_; }
     int upperBoundRRT() const noexcept { return upperBoundRRT_; }
     int lowerBoundRRT() const noexcept { return lowerBoundRRT_; }
+    int nbPtOptions() const noexcept { return nbPtOptions_; }
 
 private:
     // --- Search parameters (searchConfigFile) ---
@@ -53,6 +54,10 @@ private:
     // Number of improving iterations that triggers a decrease of recordToRecordValue_.
     int lowerBoundRRT_ = 0;
     float rateRRT_ = 0.f;
+    // Maximum number of PT options kept per request: stop pairs for the
+    // 2-vehicle pattern, vehicle-side stops for the walk pattern (see
+    // Instance::precomputeAccessOptions).
+    int nbPtOptions_ = 0;
 
     // --- Instance-related runtime parameters (instanceConfigFile) ---
     int timeLimit_ = 0;

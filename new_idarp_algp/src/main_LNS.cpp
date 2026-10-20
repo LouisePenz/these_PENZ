@@ -121,7 +121,7 @@ int main(int argc, char* argv[]) {
 
     instance.configurePublicTransport(conf.waitingTime(), conf.minimumTimeInTransit());
     instance.configureWalk(conf.walkThreshold());
-    instance.precomputeAccessOptions();
+    instance.precomputeAccessOptions(conf.nbPtOptions());
     // -v: file holding the minimum number of vehicles found by main_nb_vehicles;
     // one more vehicle is used here so that a complete solution is found quickly.
     int minNbVehicles = 0;

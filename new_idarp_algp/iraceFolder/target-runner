@@ -13,6 +13,7 @@ upper_bound_RRT=$4
 ratio_lower_RRT=$5
 rate_RRT=$6
 update_iteration=$7
+nb_pt_options=$8
 
 pourcent_nb_requests_removed_max=$(( pourcent_nb_requests_removed_min + largeur_requests_removed ))
 if [ "$pourcent_nb_requests_removed_max" -gt 100 ]; then
@@ -40,6 +41,7 @@ upper_bound_RRT: $upper_bound_RRT
 lower_bound_RRT: $lower_bound_RRT
 rate_RRT: $rate_RRT
 update_iteration: $update_iteration
+nb_pt_options: $nb_pt_options
 EOF
 
 NUMBER=$(echo "$INSTANCE" | sed 's/^i30_30_\(.*\)\.txt$/\1/')

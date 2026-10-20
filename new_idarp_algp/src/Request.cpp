@@ -34,24 +34,12 @@ void Request::print() const {
     if (!ptAccess_.available()) {
         std::cout << "   The request cannot take public transportation\n";
     } else {
-        std::cout << "   Stops before are ";
-        for (auto s : ptAccess_.stopsBefore()) std::cout << s << " ";
-        std::cout << "\n   Stops after are ";
-        for (auto s : ptAccess_.stopsAfter()) std::cout << s << " ";
-        std::cout << "\n";
-        auto before = ptAccess_.aggregateWindowBefore();
-        std::cout << "   For stops before, the largest time window is [" << before.lowerBound << ";"
-                  << before.upperBound << "]\n";
-        for (auto s : ptAccess_.stopsBefore()) {
-            auto w = ptAccess_.windowForStopBefore(s);
-            std::cout << "      " << s << ": [" << w.lowerBound << ";" << w.upperBound << "]\n";
-        }
-        auto after = ptAccess_.aggregateWindowAfter();
-        std::cout << "   For stops after, the largest time window is [" << after.lowerBound << ";"
-                  << after.upperBound << "]\n";
-        for (auto s : ptAccess_.stopsAfter()) {
-            auto w = ptAccess_.windowForStopAfter(s);
-            std::cout << "      " << s << ": [" << w.lowerBound << ";" << w.upperBound << "]\n";
+        std::cout << "   Stop pairs (before -> after):\n";
+        for (const StopPair& p : ptAccess_.pairs()) {
+            std::cout << "      " << p.stopBefore << " [" << p.windowBefore.lowerBound << ";"
+                      << p.windowBefore.upperBound << "] -> " << p.stopAfter << " [" << p.windowAfter.lowerBound
+                      << ";" << p.windowAfter.upperBound << "], PT " << p.ptTravelTime
+                      << ", leg max ride times " << p.maxRideTimeFirstLeg << " / " << p.maxRideTimeLastLeg << "\n";
         }
     }
 

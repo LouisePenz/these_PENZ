@@ -31,28 +31,20 @@ public:
     void configurePublicTransport(int waitingTime, int minimumTimeInTransit);
     void configureWalk(int walkThreshold);
 
-    // Precomputes, for every request, the best candidate PT stops (with and
-    // without a walking leg). Requires configurePublicTransport/configureWalk first.
-    void precomputeAccessOptions();
+    // Precomputes, for every request, its PT options: up to maxPtOptions stop
+    // pairs for the 2-vehicle pattern (Request::ptAccess), and up to
+    // maxPtOptions stops on the vehicle side of the walk pattern
+    // (Request::walkAccess). Requires configurePublicTransport/configureWalk first.
+    void precomputeAccessOptions(int maxPtOptions);
 
     // True if request req can go pickup -> stopBefore -> [PT] -> stopAfter -> delivery
     // while respecting its maximum ride time.
     bool isStopPairFeasible(int req, int stopBefore, int stopAfter) const;
-    // The single criterion for a usable (stopBefore, stopAfter) pair, used both
-    // by the preprocessing and by the insertion search (the candidate lists
-    // stopsBefore/stopsAfter are kept separately, so not every combination of
-    // the two is a valid pair): ride-time feasible, PT ride at least the
-    // minimum time in transit, and access legs shorter than the direct trip.
+    // The criterion for a usable (stopBefore, stopAfter) pair: ride-time
+    // feasible, PT ride at least the minimum time in transit, and access legs
+    // shorter than the direct trip.
     bool isValidStopPair(int req, int stopBefore, int stopAfter) const;
-    // Static window of the stopAfter of a valid pair -- depends only on the
-    // instance, never on the current solution, so it stays valid in a route
-    // whatever happens to the first leg later on.
-    TimeWindow stopAfterWindow(int req, int stopBefore, int stopAfter) const;
 
-    // In case of a "vehicle -> PT -> vehicle" transfer, the maximum ride time
-    // allowed for the first leg (pickup -> stop before), resp. the last leg.
-    int maxRideTimeFirstLeg(int req) const;
-    int maxRideTimeLastLeg(int req) const;
     // In case of a transfer with a walking leg, the maximum ride time allowed
     // for the vehicle leg opposite to the walk, when the vehicle serves PT stop
     // stopId (one of walkAccess().complementaryStops()).
@@ -88,8 +80,8 @@ private:
     std::vector<std::vector<int>> relatedWithTransfer_;
 
     void loadRequests(const std::string& instanceFile);
-    void computeStopsBeforeAndAfter();
-    void computeWalkData();
+    void computeStopPairs(int maxPairs);
+    void computeWalkData(int maxStops);
     void computeRelatedness();
     void computeRelatednessWithTransfer();
 };

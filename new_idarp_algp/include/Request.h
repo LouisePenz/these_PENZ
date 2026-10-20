@@ -9,36 +9,30 @@ struct TimeWindow {
     int upperBound = 0;
 };
 
-// Candidate PT stops for the "vehicle -> PT -> vehicle" pattern: up to a few
-// best stops before the PT leg, and a few best stops after, precomputed once.
+// One way to use PT between two vehicles: pickup -> (vehicle A) -> stopBefore
+// -> (PT) -> stopAfter -> (vehicle B) -> delivery. Feasibility depends on the
+// PAIR (PT time, ride time), so everything derived is stored per pair.
+struct StopPair {
+    int stopBefore = -1;
+    int stopAfter = -1;
+    int ptTravelTime = 0;     // publicTransportTime(stopBefore, stopAfter), average waiting included
+    TimeWindow windowBefore;  // service at stopBefore
+    TimeWindow windowAfter;   // service at stopAfter
+    int maxRideTimeFirstLeg = 0;  // pickup -> stopBefore
+    int maxRideTimeLastLeg = 0;   // stopAfter -> delivery
+};
+
+// Candidate stop pairs for the "vehicle -> PT -> vehicle" pattern: the best
+// valid pairs (Instance::isValidStopPair), cheapest access legs first,
+// precomputed once -- see Instance::computeStopPairs.
 class PtLegAccess {
 public:
-    bool available() const noexcept { return !stopsBefore_.empty(); }
-
-    const std::vector<int>& stopsBefore() const noexcept { return stopsBefore_; }
-    const std::vector<int>& stopsAfter() const noexcept { return stopsAfter_; }
-
-    TimeWindow windowForStopBefore(int stopId) const { return windowBefore_.at(stopId); }
-    TimeWindow windowForStopAfter(int stopId) const { return windowAfter_.at(stopId); }
-
-    // Widest time window covering every candidate stop before/after (union of the per-stop windows).
-    TimeWindow aggregateWindowBefore() const noexcept { return aggregateBefore_; }
-    TimeWindow aggregateWindowAfter() const noexcept { return aggregateAfter_; }
-
-    void setStopsBefore(std::vector<int> stops) { stopsBefore_ = std::move(stops); }
-    void setStopsAfter(std::vector<int> stops) { stopsAfter_ = std::move(stops); }
-    void setWindowForStopBefore(int stopId, TimeWindow w) { windowBefore_[stopId] = w; }
-    void setWindowForStopAfter(int stopId, TimeWindow w) { windowAfter_[stopId] = w; }
-    void setAggregateWindowBefore(TimeWindow w) noexcept { aggregateBefore_ = w; }
-    void setAggregateWindowAfter(TimeWindow w) noexcept { aggregateAfter_ = w; }
+    bool available() const noexcept { return !pairs_.empty(); }
+    const std::vector<StopPair>& pairs() const noexcept { return pairs_; }
+    void setPairs(std::vector<StopPair> pairs) { pairs_ = std::move(pairs); }
 
 private:
-    std::vector<int> stopsBefore_;
-    std::vector<int> stopsAfter_;
-    std::unordered_map<int, TimeWindow> windowBefore_;
-    std::unordered_map<int, TimeWindow> windowAfter_;
-    TimeWindow aggregateBefore_;
-    TimeWindow aggregateAfter_;
+    std::vector<StopPair> pairs_;
 };
 
 enum class WalkSide { None, AtPickup, AtDelivery };
