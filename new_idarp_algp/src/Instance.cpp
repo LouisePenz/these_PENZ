@@ -77,11 +77,8 @@ bool Instance::isStopPairFeasible(int req, int stopBefore, int stopAfter) const 
 }
 
 bool Instance::isValidStopPair(int req, int stopBefore, int stopAfter) const {
-    const Request& r = requests_[req];
-    int accessCost = travelTimes_.driveTime(r.pickupId(), stopBefore) + travelTimes_.driveTime(r.deliveryId(), stopAfter);
     return isStopPairFeasible(req, stopBefore, stopAfter) &&
-           travelTimes_.publicTransportTime(stopBefore, stopAfter) >= travelTimes_.minimumTimeInTransit() &&
-           accessCost < travelTimes_.driveTime(r.pickupId(), r.deliveryId());
+           travelTimes_.publicTransportTime(stopBefore, stopAfter) >= travelTimes_.minimumTimeInTransit();
 }
 
 void Instance::computeStopPairs(int maxPairs) {
