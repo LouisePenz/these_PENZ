@@ -1,0 +1,7 @@
+pourcent_nb_requests_removed_min: 5
+pourcent_nb_requests_removed_max: 10
+record_to_record_value: 0.8
+upper_bound_RRT: 48
+lower_bound_RRT: 46
+rate_RRT: 1.6915
+update_iteration: 107

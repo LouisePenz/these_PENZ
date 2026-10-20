@@ -1,0 +1,16 @@
+# Build outputs
+new_idarp_algp/bin/
+new_idarp_algp/build/
+new_idarp_algp/.deps/
+
+# Profiling and run outputs
+gmon.out
+objective.txt
+new_idarp_algp/iraceFolder/run_*/
+*.Rdata
+
+# Local backups made before the repository existed (their content is in the history)
+new_idarp_algp/backup_*/
+
+# Archives
+*.zip

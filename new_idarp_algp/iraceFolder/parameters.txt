@@ -1,0 +1,7 @@
+pourcent_nb_requests_removed_min "" i (0,80)
+largeur_requests_removed         "" i (1,20)
+record_to_record_value           "" r (0,1)
+upper_bound_RRT                  "" i (1,100)
+ratio_lower_RRT                  "" r (0,0.95)
+rate_RRT                         "" r (1,5)
+update_iteration                 "" i (50,150)
