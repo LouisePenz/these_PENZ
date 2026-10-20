@@ -17,6 +17,17 @@ const char* roleName(StopRole role) {
     }
     return "?";
 }
+
+// Where one request's stops are in the STP graph being built (see
+// Solution::buildDarpGraph): node and stop for each role, absent if null.
+struct Slot {
+    int node = -1;
+    const RouteStop* stop = nullptr;
+};
+struct Placement {
+    Slot pickup, delivery, stopBefore, stopAfter;
+    bool transfer = false;
+};
 }  // namespace
 
 
@@ -105,17 +116,18 @@ bool Solution::buildDarpGraph(const std::vector<int>& affectedRoutes, DarpGraph&
     graph.earliestStart[0] = H;
 
     // Where each request's stops are, by role, gathered in the same single
-    // pass as the route arcs.
-    struct Slot {
-        int node = -1;
-        const RouteStop* stop = nullptr;
-    };
-    struct Placement {
-        Slot pickup, delivery, stopBefore, stopAfter;
-        bool transfer = false;
-    };
-    std::vector<Placement> placements(instance_->nbRequests());
-    std::vector<int> requestsSeen;
+    // pass as the route arcs -- in a workspace indexed by request, shared by
+    // every call (one STP runs at a time) instead of allocated and zeroed for
+    // each one; only the entries of the requests seen are reset on the way out.
+    thread_local std::vector<Placement> placements;
+    thread_local std::vector<int> requestsSeen;
+    if (static_cast<int>(placements.size()) < instance_->nbRequests()) placements.resize(instance_->nbRequests());
+    requestsSeen.clear();
+    struct ResetSeen {
+        ~ResetSeen() {
+            for (int requestId : requestsSeen) placements[requestId] = Placement{};
+        }
+    } resetSeen;
 
     // Route chain arcs: value(succ) >= value(pred) + driveTime + serviceTime(pred).
     for (int r : affectedRoutes) {
@@ -218,13 +230,16 @@ bool Solution::buildDarpGraph(const std::vector<int>& affectedRoutes, DarpGraph&
 
 bool Solution::propagateForwardDarp(const std::vector<int>& affectedRoutes, bool warmStart) {
     const int H = instance_->horizonTime();
-    DarpGraph graph;
+    // Workspaces reused from one call to the next (one STP runs at a time):
+    // no allocation once they have reached their largest size.
+    thread_local DarpGraph graph;
+    thread_local std::vector<int> value;
     if (!buildDarpGraph(affectedRoutes, graph)) return false;
 
     // Earliest schedule: every node starts low and is pushed up. Start values:
     // the instance's lower bounds (graph.earliestStart) -- with warmStart,
     // raised to the stops' current ltwDarp (see the header).
-    std::vector<int> value = graph.earliestStart;
+    value.assign(graph.earliestStart.begin(), graph.earliestStart.end());
     if (warmStart) {
         for (int r : affectedRoutes)
             for (int i = 0; i < routes_[r].size(); ++i) {
@@ -264,7 +279,10 @@ bool Solution::propagateForwardDarp(){
 }
 
 bool Solution::propagateBackwardDarp(const std::vector<int>& affectedRoutes) {
-    DarpGraph graph;
+    // Workspaces reused from one call to the next, as in propagateForwardDarp.
+    thread_local DarpGraph graph;
+    thread_local std::vector<int> value;
+    thread_local std::vector<char> fixed;
     if (!buildDarpGraph(affectedRoutes, graph)) return false;
 
     // Latest schedule: the mirror of propagateForwardDarp -- every node starts
@@ -272,8 +290,8 @@ bool Solution::propagateBackwardDarp(const std::vector<int>& affectedRoutes) {
     // down: value(to) <= value(from) + weight. The artificial depot (H) and
     // the route depots (departure at 0) are fixed: having to pull one of them
     // down means no schedule exists.
-    std::vector<int> value = graph.latestStart;
-    std::vector<char> fixed(graph.nbNodes, 0);
+    value.assign(graph.latestStart.begin(), graph.latestStart.end());
+    fixed.assign(graph.nbNodes, 0);
     fixed[0] = 1;
     for (int r : affectedRoutes) fixed[graph.routeOffset[r]] = 1;
 
