@@ -162,28 +162,3 @@ std::vector<InsertionEvaluator::InsertionResult> InsertionEvaluator::generateCan
     }
     return candidates;
 }
-
-bool InsertionEvaluator::verify(const Solution& solution, const InsertionResult& candidate,
-                                 const RouteStop& pickupTemplate, const RouteStop& deliveryTemplate,
-                                 const int* overrideMaxRideTime) const {
-    Solution trial = solution;  // cheap: value types, no manual undo needed
-
-    trial.insertStopAt(candidate.routeIndex, candidate.posPickup, pickupTemplate);
-    int deliveryIndex =
-        (candidate.posDelivery == candidate.posPickup) ? candidate.posPickup + 1 : candidate.posDelivery + 1;
-    trial.insertStopAt(candidate.routeIndex, deliveryIndex, deliveryTemplate);
-
-    Route& trialRoute = trial.route(candidate.routeIndex);
-    trialRoute.recomputeLoad();
-    if (!trialRoute.hasFreeCapacity(0, trialRoute.size() - 1, 0)) return false;
-
-    std::vector<std::pair<int, Solution::RideTimeLink>> overrides;
-    if (overrideMaxRideTime) {
-        Solution::NodeRef nearNode{candidate.routeIndex, candidate.posPickup};
-        Solution::NodeRef farNode{candidate.routeIndex, deliveryIndex};
-        overrides.push_back({pickupTemplate.requestId, {nearNode, farNode, *overrideMaxRideTime}});
-    }
-
-    std::vector<int> affected = trial.dependentRoutes(candidate.routeIndex);
-    return trial.propagateForwardDarp(affected, overrides);
-}

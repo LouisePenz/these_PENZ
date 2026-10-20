@@ -31,9 +31,11 @@ struct RequestInsertionCandidate {
 
 // Orchestrates InsertionEvaluator across every route and every pattern (direct,
 // walk, 2-vehicle transfer) to find the best way(s) to insert one currently
-// unassigned request. For each pattern: every candidate admitted by the O(1)
-// test (InsertionEvaluator), sorted by cost, then the exact STP check in that
-// order until enough feasible ones are found.
+// unassigned request: every candidate of every pattern admitted by the O(1)
+// test (InsertionEvaluator) goes into ONE list, sorted once (see
+// candidateLess), then the exact STP check runs in that order until enough
+// feasible ones are found -- so no STP check is ever spent on a candidate
+// costlier than the ones finally returned.
 class RequestInsertionSearch {
 public:
     // Returns up to maxResults feasible ways to insert `requestId`, sorted by
@@ -48,23 +50,20 @@ public:
     void apply(Solution& solution, const RequestInsertionCandidate& candidate) const;
 
 private:
-    std::vector<RequestInsertionCandidate> findDirectInsertions(const Solution& solution, int requestId,
-                                                                  int maxResults) const;
-    std::vector<RequestInsertionCandidate> findWalkInsertions(const Solution& solution, int requestId,
-                                                                int maxResults) const;
-
+    // Each appends to `out` every candidate of its pattern admitted by the
+    // O(1) test -- none of them checked by the STP yet.
+    void collectDirect(const Solution& solution, int requestId, std::vector<RequestInsertionCandidate>& out) const;
+    void collectWalk(const Solution& solution, int requestId, std::vector<RequestInsertionCandidate>& out) const;
     // Exhaustive: every (first leg, last leg) combination -- every valid pair
     // of PT stops, every pair of distinct routes, every position admitted for
     // each leg -- that passes the O(1) test of the whole request
-    // (InsertionEvaluator::admitsTransfer), sorted by total cost, then the
-    // exact STP check of the whole request in that order.
-    std::vector<RequestInsertionCandidate> findTransferInsertions(const Solution& solution, int requestId,
-                                                                    int maxResults) const;
+    // (InsertionEvaluator::admitsTransfer).
+    void collectTransfer(const Solution& solution, int requestId, std::vector<RequestInsertionCandidate>& out) const;
 
-    // Exact check of a 2-vehicle candidate: both legs and the Transfer are
+    // Exact check of any candidate: its stop(s), and Transfer if any, are
     // inserted in a copy of `solution`, then capacity and the STP of the
-    // whole request (its true maximum ride time) are checked.
-    bool verifyTransfer(const Solution& solution, const RequestInsertionCandidate& candidate) const;
+    // routes involved (with the request's true maximum ride time) are checked.
+    bool verifyCandidate(const Solution& solution, const RequestInsertionCandidate& candidate) const;
 
     InsertionEvaluator evaluator_;
 };

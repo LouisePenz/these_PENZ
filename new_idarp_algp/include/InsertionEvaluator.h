@@ -67,15 +67,6 @@ public:
                                                       const RouteStop& pickupTemplate,
                                                       const RouteStop& deliveryTemplate, int maxRideTime) const;
 
-    // The expensive exact check for exactly one candidate returned by
-    // generateCandidates (for the same route and templates). Copies
-    // `solution`, applies the candidate, and runs Solution::propagateForwardDarp
-    // -- never mutates `solution` itself. overrideMaxRideTime is forwarded as
-    // in Solution::propagateForwardDarp (see the discussion on why it's
-    // needed for a leg tested in isolation).
-    bool verify(const Solution& solution, const InsertionResult& candidate, const RouteStop& pickupTemplate,
-                const RouteStop& deliveryTemplate, const int* overrideMaxRideTime = nullptr) const;
-
 private:
     // First half of estimateLeg alone: can `first` go at posFirst, before a
     // second stop placed further in the route? Prunes the inner loops.
