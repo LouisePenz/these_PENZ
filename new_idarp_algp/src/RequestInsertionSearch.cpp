@@ -197,17 +197,26 @@ bool RequestInsertionSearch::verifyCandidate(const Solution& solution,
 
 std::vector<RequestInsertionCandidate> RequestInsertionSearch::findInsertions(const Solution& solution,
                                                                                 int requestId, int maxResults) const {
-    std::vector<RequestInsertionCandidate> candidates;
+    // Reused from one call to the next: no reallocation once it has reached its largest size.
+    thread_local std::vector<RequestInsertionCandidate> candidates;
+    candidates.clear();
     collectDirect(solution, requestId, candidates);
     collectWalk(solution, requestId, candidates);
     collectTransfer(solution, requestId, candidates);
-    std::sort(candidates.begin(), candidates.end(), candidateLess);
+
+    // A heap rather than a full sort: only the candidates actually checked
+    // are ordered, in exactly the order a sort would give (candidateLess is a
+    // strict total order). std heaps put the largest on top, hence the swap.
+    auto worse = [](const RequestInsertionCandidate& a, const RequestInsertionCandidate& b) {
+        return candidateLess(b, a);
+    };
+    std::make_heap(candidates.begin(), candidates.end(), worse);
 
     std::vector<RequestInsertionCandidate> pool;
-    for (const auto& c : candidates) {
-        if (!verifyCandidate(solution, c)) continue;
-        pool.push_back(c);
-        if (static_cast<int>(pool.size()) >= maxResults) break;
+    while (!candidates.empty() && static_cast<int>(pool.size()) < maxResults) {
+        std::pop_heap(candidates.begin(), candidates.end(), worse);  // cheapest moved to the back
+        if (verifyCandidate(solution, candidates.back())) pool.push_back(candidates.back());
+        candidates.pop_back();
     }
     return pool;
 }

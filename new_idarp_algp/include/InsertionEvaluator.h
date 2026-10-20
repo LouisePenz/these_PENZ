@@ -68,7 +68,20 @@ public:
                                                       const RouteStop& deliveryTemplate, int maxRideTime) const;
 
 private:
-    // First half of estimateLeg alone: can `first` go at posFirst, before a
-    // second stop placed further in the route? Prunes the inner loops.
-    bool admitsFirstAlone(const Solution& solution, int routeIndex, int posFirst, const RouteStop& first) const;
+    // estimateLeg when the second stop goes further in the route (posSecond >
+    // posFirst), split in two so that the first stop's part -- which only
+    // depends on posFirst -- is computed once for every posSecond.
+    struct FirstStop {
+        bool admitted = false;
+        int routeIndex = -1;
+        int time = 0;       // earliest service time of the first stop
+        int latest = 0;     // upper bound on its latest service time
+        int afterNode = 0;  // node (in `timing`) of the existing stop right after it
+        int shift = 0;      // postponement it imposes on that stop
+        const LinkedRoutesTiming* timing = nullptr;
+    };
+    FirstStop placeFirst(const Solution& solution, int routeIndex, int posFirst, const RouteStop& first,
+                         const LegEstimate* upstream = nullptr, int firstMinTime = 0) const;
+    LegEstimate placeSecond(const Solution& solution, const FirstStop& first, int posSecond, const RouteStop& second,
+                            int maxRideTime, const LegEstimate* upstream = nullptr) const;
 };

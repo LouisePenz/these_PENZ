@@ -16,74 +16,102 @@ int shiftedEarliest(const LinkedRoutesTiming& timing, int node, const InsertionE
 }
 }  // namespace
 
-bool InsertionEvaluator::admitsFirstAlone(const Solution& solution, int routeIndex, int posFirst,
-                                          const RouteStop& first) const {
+InsertionEvaluator::FirstStop InsertionEvaluator::placeFirst(const Solution& solution, int routeIndex, int posFirst,
+                                                            const RouteStop& first, const LegEstimate* upstream,
+                                                            int firstMinTime) const {
+    FirstStop f;
     const LinkedRoutesTiming& tm = solution.timing(routeIndex);
     const TravelTimeProvider& tt = solution.instance().travelTimes();
+    f.timing = &tm;
+    f.routeIndex = routeIndex;
+    f.afterNode = tm.node(routeIndex, posFirst);
+
+    // First stop, after node i (Algorithm 1, lines 1-3)...
     int i = tm.node(routeIndex, posFirst - 1);
-    int afterI = tm.node(routeIndex, posFirst);
-    int hFirst = std::max(first.windowLtw, tm.earliest(i) + tm.serviceTime(i) + tt.driveTime(tm.pointId(i), first.pointId));
-    if (hFirst > first.windowUtw) return false;
-    int delta = hFirst + first.serviceTime + tt.driveTime(first.pointId, tm.pointId(afterI)) - tm.earliest(afterI);
-    return delta <= tm.forwardSlack(afterI);
+    f.time = std::max({first.windowLtw, firstMinTime,
+                       shiftedEarliest(tm, i, upstream) + tm.serviceTime(i) + tt.driveTime(tm.pointId(i), first.pointId)});
+    if (f.time > first.windowUtw) return f;
+
+    // ...and the shift at i's old successor (lines 4-6).
+    f.shift = std::max(0, f.time + first.serviceTime + tt.driveTime(first.pointId, tm.pointId(f.afterNode)) -
+                              tm.earliest(f.afterNode));
+    if (f.shift > tm.forwardSlack(f.afterNode)) return f;
+    f.latest = std::min(first.windowUtw, tm.latest(f.afterNode) - first.serviceTime -
+                                             tt.driveTime(first.pointId, tm.pointId(f.afterNode)));
+    f.admitted = true;
+    return f;
+}
+
+InsertionEvaluator::LegEstimate InsertionEvaluator::placeSecond(const Solution& solution, const FirstStop& f,
+                                                                int posSecond, const RouteStop& second,
+                                                                int maxRideTime, const LegEstimate* upstream) const {
+    LegEstimate est;
+    const LinkedRoutesTiming& tm = *f.timing;
+    const TravelTimeProvider& tt = solution.instance().travelTimes();
+    est.timing = &tm;
+
+    // The first stop's shift propagated to j (Algorithm 2, line 4), then the second stop after j.
+    int j = tm.node(f.routeIndex, posSecond - 1);
+    int afterJ = tm.node(f.routeIndex, posSecond);
+    int hJ = std::max(shiftedEarliest(tm, j, upstream), tm.earliest(j) + f.shift - tm.slackTime(f.afterNode, j));
+    int hSecond = std::max(second.windowLtw, hJ + tm.serviceTime(j) + tt.driveTime(tm.pointId(j), second.pointId));
+    if (hSecond > second.windowUtw) return est;
+    int deltaSecond = std::max(0, hSecond + second.serviceTime + tt.driveTime(second.pointId, tm.pointId(afterJ)) -
+                                      tm.earliest(afterJ));
+    if (deltaSecond > tm.forwardSlack(afterJ)) return est;
+    int latestSecond = std::min(second.windowUtw, tm.latest(afterJ) - second.serviceTime -
+                                                      tt.driveTime(second.pointId, tm.pointId(afterJ)));
+
+    // Earliest above latest: no schedule. Then the ride time between the two
+    // stops is at least (earliest second) - (latest first).
+    if (f.latest < f.time || latestSecond < hSecond) return est;
+    if (hSecond - f.latest > maxRideTime) return est;
+
+    est.admitted = true;
+    est.firstTime = f.time;
+    est.secondTime = hSecond;
+    est.firstLatest = f.latest;
+    est.shifts[0] = {f.afterNode, f.shift};
+    est.shifts[1] = {afterJ, deltaSecond};
+    est.nbShifts = 2;
+    return est;
 }
 
 InsertionEvaluator::LegEstimate InsertionEvaluator::estimateLeg(const Solution& solution, int routeIndex, int posFirst,
                                                                 int posSecond, const RouteStop& first,
                                                                 const RouteStop& second, int maxRideTime,
                                                                 const LegEstimate* upstream, int firstMinTime) const {
+    if (posSecond != posFirst) {
+        FirstStop f = placeFirst(solution, routeIndex, posFirst, first, upstream, firstMinTime);
+        if (!f.admitted) {
+            LegEstimate rejected;
+            rejected.timing = f.timing;
+            return rejected;
+        }
+        return placeSecond(solution, f, posSecond, second, maxRideTime, upstream);
+    }
+
+    // Second stop right after the first: a single shift, at i's old successor.
     LegEstimate est;
     const LinkedRoutesTiming& tm = solution.timing(routeIndex);
     const TravelTimeProvider& tt = solution.instance().travelTimes();
     est.timing = &tm;
 
-    // First stop, after node i (Algorithm 1, lines 1-3).
     int i = tm.node(routeIndex, posFirst - 1);
     int afterI = tm.node(routeIndex, posFirst);
     int hFirst = std::max({first.windowLtw, firstMinTime,
                            shiftedEarliest(tm, i, upstream) + tm.serviceTime(i) + tt.driveTime(tm.pointId(i), first.pointId)});
     if (hFirst > first.windowUtw) return est;
-
-    int hSecond = 0, latestFirst = 0, latestSecond = 0;
-    if (posSecond == posFirst) {
-        // Second stop right after the first: a single shift, at i's old successor.
-        hSecond = std::max(second.windowLtw, hFirst + first.serviceTime + tt.driveTime(first.pointId, second.pointId));
-        if (hSecond > second.windowUtw) return est;
-        int delta = std::max(0, hSecond + second.serviceTime + tt.driveTime(second.pointId, tm.pointId(afterI)) -
-                                    tm.earliest(afterI));
-        if (delta > tm.forwardSlack(afterI)) return est;
-        est.shifts[0] = {afterI, delta};
-        est.nbShifts = 1;
-        latestSecond = std::min(second.windowUtw, tm.latest(afterI) - second.serviceTime -
+    int hSecond = std::max(second.windowLtw, hFirst + first.serviceTime + tt.driveTime(first.pointId, second.pointId));
+    if (hSecond > second.windowUtw) return est;
+    int delta = std::max(0, hSecond + second.serviceTime + tt.driveTime(second.pointId, tm.pointId(afterI)) -
+                                tm.earliest(afterI));
+    if (delta > tm.forwardSlack(afterI)) return est;
+    int latestSecond = std::min(second.windowUtw, tm.latest(afterI) - second.serviceTime -
                                                       tt.driveTime(second.pointId, tm.pointId(afterI)));
-        latestFirst = std::min(first.windowUtw,
+    int latestFirst = std::min(first.windowUtw,
                                latestSecond - first.serviceTime - tt.driveTime(first.pointId, second.pointId));
-    } else {
-        // Shift at i's old successor (Algorithm 1, lines 4-6)...
-        int deltaFirst = std::max(0, hFirst + first.serviceTime + tt.driveTime(first.pointId, tm.pointId(afterI)) -
-                                         tm.earliest(afterI));
-        if (deltaFirst > tm.forwardSlack(afterI)) return est;
-        latestFirst = std::min(first.windowUtw, tm.latest(afterI) - first.serviceTime -
-                                                    tt.driveTime(first.pointId, tm.pointId(afterI)));
 
-        // ...propagated to j (Algorithm 2, line 4), then the second stop after j.
-        int j = tm.node(routeIndex, posSecond - 1);
-        int afterJ = tm.node(routeIndex, posSecond);
-        int hJ = std::max(shiftedEarliest(tm, j, upstream), tm.earliest(j) + deltaFirst - tm.slackTime(afterI, j));
-        hSecond = std::max(second.windowLtw, hJ + tm.serviceTime(j) + tt.driveTime(tm.pointId(j), second.pointId));
-        if (hSecond > second.windowUtw) return est;
-        int deltaSecond = std::max(0, hSecond + second.serviceTime + tt.driveTime(second.pointId, tm.pointId(afterJ)) -
-                                          tm.earliest(afterJ));
-        if (deltaSecond > tm.forwardSlack(afterJ)) return est;
-        latestSecond = std::min(second.windowUtw, tm.latest(afterJ) - second.serviceTime -
-                                                      tt.driveTime(second.pointId, tm.pointId(afterJ)));
-        est.shifts[0] = {afterI, deltaFirst};
-        est.shifts[1] = {afterJ, deltaSecond};
-        est.nbShifts = 2;
-    }
-
-    // Earliest above latest: no schedule. Then the ride time between the two
-    // stops is at least (earliest second) - (latest first).
     if (latestFirst < hFirst || latestSecond < hSecond) return est;
     if (hSecond - latestFirst > maxRideTime) return est;
 
@@ -91,6 +119,8 @@ InsertionEvaluator::LegEstimate InsertionEvaluator::estimateLeg(const Solution& 
     est.firstTime = hFirst;
     est.secondTime = hSecond;
     est.firstLatest = latestFirst;
+    est.shifts[0] = {afterI, delta};
+    est.nbShifts = 1;
     return est;
 }
 
@@ -144,15 +174,14 @@ std::vector<InsertionEvaluator::InsertionResult> InsertionEvaluator::generateCan
         }
 
         // Delivery at a later gap: independent insertion costs, using the
-        // original route's neighbors (unaffected by pickup's insertion).
-        if (!admitsFirstAlone(solution, routeIndex, posPickup, pickupTemplate)) continue;
+        // original route's neighbors (unaffected by pickup's insertion). The
+        // pickup's part of the test only depends on posPickup: done once.
+        FirstStop pickupPlaced = placeFirst(solution, routeIndex, posPickup, pickupTemplate);
+        if (!pickupPlaced.admitted) continue;
         int costPickupAlone = tt.driveTime(beforeP, pickupTemplate.pointId) +
                               tt.driveTime(pickupTemplate.pointId, afterP) - tt.driveTime(beforeP, afterP);
         for (int posDelivery = posPickup + 1; posDelivery <= n; ++posDelivery) {
-            if (!estimateLeg(solution, routeIndex, posPickup, posDelivery, pickupTemplate, deliveryTemplate,
-                             maxRideTime)
-                     .admitted)
-                continue;
+            if (!placeSecond(solution, pickupPlaced, posDelivery, deliveryTemplate, maxRideTime).admitted) continue;
             int beforeD = route.pointBefore(posDelivery);
             int afterD = route.pointAfter(posDelivery);
             int costDeliveryAlone = tt.driveTime(beforeD, deliveryTemplate.pointId) +
