@@ -4,10 +4,8 @@
 #include <utility>
 
 #include "Solution.h"
-#include <iostream>
 
 bool RandomRepair::apply(Solution& solution, bool allowPartial) {
-    std::cout << "random\n";
     std::vector<int> pending = solution.unassignedRequests();  // snapshot: apply() mutates it
 
     // Fisher-Yates shuffle with rand(), consistent with RandomRemoval.

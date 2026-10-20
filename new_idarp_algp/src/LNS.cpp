@@ -3,7 +3,6 @@
 #include <cstdlib>
 
 #include "Clock.h"
-#include <iostream>
 
 LNS::LNS(const ConfLNS& conf, std::vector<std::unique_ptr<Destroyer>> destroyers,
          std::vector<std::unique_ptr<Repairer>> repairers)
@@ -54,7 +53,6 @@ Solution LNS::compute(const Solution& sInit, int timeLimit) {
             // Rejected: `trial` simply goes out of scope next iteration --
             // `current` was never touched, nothing to restore.
         }
-        std::cout << best.objectiveFunction() << "\n";
         ++iteration_;
 
         if (conf_->updateIteration() > 0 && nbIterationsFeasible == conf_->updateIteration()) {

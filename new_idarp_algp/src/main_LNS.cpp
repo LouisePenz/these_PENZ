@@ -33,6 +33,9 @@ void printHelp() {
     std::cout << "  -v \"file with the minimum number of vehicles\"             | Mandatory | (main_nb_vehicles -res); uses it + 1\n";
     std::cout << "  -f \"folder of instance/drive time/ public transport time\" | Optional  | Default \"./\"\n";
     std::cout << "  -s \"random seed\"                                          | Optional  | Default current time\n";
+    std::cout << "  -check                                                    | Optional  | Check the initial and best\n";
+    std::cout << "                                                            |           | solutions (SolutionChecker),\n";
+    std::cout << "                                                            |           | report on stderr\n";
     std::cout << "\nNot yet supported by this rewrite (see comments in main_LNS.cpp):\n";
     std::cout << "  -sn / -sinit / -slns / -history\n";
 }
@@ -138,10 +141,12 @@ int main(int argc, char* argv[]) {
     TimePoint start = now();
     PartialLNS partialLns(conf, makeDestroyers(), makeRepairersRandom());
     Solution sInit = partialLns.compute(instance);
-    std::cout << "Fin Sinit\n";
     sInit.computeObjectiveFunction();
-    std::cerr << "Initial solution:\n";
-    checkSolution(sInit, std::cerr);
+    bool check = hasFlag(argc, argv, "-check");
+    if (check) {
+        std::cerr << "Initial solution:\n";
+        checkSolution(sInit, std::cerr);
+    }
 
     // An incomplete initial solution means the whole time budget is already
     // spent: no optimization, and a deliberately bad objective (worse than
@@ -161,8 +166,10 @@ int main(int argc, char* argv[]) {
     LNS lns(conf, makeDestroyers(), makeRepairers());
     Solution best = lns.compute(sInit, conf.timeLimit()-secondsSince(start));
     best.computeObjectiveFunction();
-    std::cerr << "Best solution:\n";
-    checkSolution(best, std::cerr);
+    if (check) {
+        std::cerr << "Best solution:\n";
+        checkSolution(best, std::cerr);
+    }
     /*std::cout << "Best solution: " << best.unassignedRequests().size() << " unassigned request(s), objective "
               << best.objectiveFunction() << " (" << lns.lastIteration() << " iteration(s), last change at "
               << lns.lastChangeIteration() << ")\n";*/

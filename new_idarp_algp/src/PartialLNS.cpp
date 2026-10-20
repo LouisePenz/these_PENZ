@@ -3,7 +3,6 @@
 #include <cstdlib>
 
 #include "Clock.h"
-#include <iostream>
 
 PartialLNS::PartialLNS(const ConfLNS& conf, std::vector<std::unique_ptr<Destroyer>> destroyers,
                         std::vector<std::unique_ptr<Repairer>> repairers)
@@ -32,7 +31,6 @@ Solution PartialLNS::compute(const Instance& instance, int noImprovementLimit, i
     int nbRequests = instance.nbRequests();
     int removeMin = nbRequests * conf_->percentRequestsRemovedMin() / 100;
     int removeMax = nbRequests * conf_->percentRequestsRemovedMax() / 100;
-    std::cout << "Remove: " << removeMin << " " << removeMax << "\n";
     if (removeMax < removeMin) removeMax = removeMin;
 
     int iterationsSinceChange = 0;
@@ -62,7 +60,6 @@ Solution PartialLNS::compute(const Instance& instance, int noImprovementLimit, i
         }
 
         ++iteration_;
-        std::cout << best.unassignedRequests().size() << "\n";
     }
 
     return best;
