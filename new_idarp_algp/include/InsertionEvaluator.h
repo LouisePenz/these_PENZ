@@ -61,11 +61,21 @@ public:
                         const RouteStop& stopBefore, const InsertionResult& leg2, const RouteStop& stopAfter,
                         const RouteStop& delivery, int ptTravelTime, int maxRideTime) const;
 
+    // For generateCandidates without a cost bound.
+    static constexpr int kNoCostBound = std::numeric_limits<int>::max() / 4;
+
     // Every position pair in solution.route(routeIndex) admitted by
-    // estimateLeg, with its real added cost. Does NOT run the exact check.
+    // estimateLeg and costing strictly less than costBound, with its real
+    // added cost. The cost is computed first, so positions at or above the
+    // bound never go through the test. Does NOT run the exact check.
+    //
+    // Relies on insertion costs being >= 0 (drive times satisfy the triangle
+    // inequality): a first stop costing costBound alone is skipped with every
+    // position of the second one.
     std::vector<InsertionResult> generateCandidates(const Solution& solution, int routeIndex,
                                                       const RouteStop& pickupTemplate,
-                                                      const RouteStop& deliveryTemplate, int maxRideTime) const;
+                                                      const RouteStop& deliveryTemplate, int maxRideTime,
+                                                      int costBound = kNoCostBound) const;
 
 private:
     // estimateLeg when the second stop goes further in the route (posSecond >

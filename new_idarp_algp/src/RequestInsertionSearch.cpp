@@ -136,7 +136,7 @@ void RequestInsertionSearch::collectWalk(const Solution& solution, int requestId
     }
 }
 
-void RequestInsertionSearch::collectTransfer(const Solution& solution, int requestId,
+void RequestInsertionSearch::collectTransfer(const Solution& solution, int requestId, int costBound,
                                              std::vector<RequestInsertionCandidate>& out) const {
     const Instance& instance = solution.instance();
     const Request& req = instance.request(requestId);
@@ -145,13 +145,15 @@ void RequestInsertionSearch::collectTransfer(const Solution& solution, int reque
     RouteStop pickup = makePickupTemplate(req, requestId);
     RouteStop delivery = makeDeliveryTemplate(req, requestId);
     // Each pair has its own windows and leg maximum ride times, so both leg
-    // lists are generated per pair.
+    // lists are generated per pair. A leg costing costBound or more on its own
+    // can't be part of a combination below it (the other leg costs >= 0).
     for (const StopPair& pair : req.ptAccess().pairs()) {
         RouteStop stopBefore =
             makePtStopTemplate(req, requestId, StopRole::StopBefore, pair.stopBefore, pair.windowBefore);
         std::vector<InsertionEvaluator::InsertionResult> firstLegs;
         for (int r = 0; r < solution.nbRoutes(); ++r) {
-            auto cands = evaluator_.generateCandidates(solution, r, pickup, stopBefore, pair.maxRideTimeFirstLeg);
+            auto cands =
+                evaluator_.generateCandidates(solution, r, pickup, stopBefore, pair.maxRideTimeFirstLeg, costBound);
             firstLegs.insert(firstLegs.end(), cands.begin(), cands.end());
         }
         if (firstLegs.empty()) continue;
@@ -159,13 +161,15 @@ void RequestInsertionSearch::collectTransfer(const Solution& solution, int reque
         RouteStop stopAfter = makePtStopTemplate(req, requestId, StopRole::StopAfter, pair.stopAfter, pair.windowAfter);
         std::vector<InsertionEvaluator::InsertionResult> lastLegs;
         for (int r = 0; r < solution.nbRoutes(); ++r) {
-            auto cands = evaluator_.generateCandidates(solution, r, stopAfter, delivery, pair.maxRideTimeLastLeg);
+            auto cands =
+                evaluator_.generateCandidates(solution, r, stopAfter, delivery, pair.maxRideTimeLastLeg, costBound);
             lastLegs.insert(lastLegs.end(), cands.begin(), cands.end());
         }
 
         for (const auto& first : firstLegs) {
             for (const auto& last : lastLegs) {
                 if (first.routeIndex == last.routeIndex) continue;  // never the same vehicle for both legs
+                if (first.cost + last.cost >= costBound) continue;
                 if (!evaluator_.admitsTransfer(solution, first, pickup, stopBefore, last, stopAfter, delivery,
                                                pair.ptTravelTime, req.maxRideTime()))
                     continue;
@@ -199,11 +203,31 @@ std::vector<RequestInsertionCandidate> RequestInsertionSearch::findInsertions(co
                                                                                 int requestId, int maxResults) const {
     // Reused from one call to the next: no reallocation once it has reached its largest size.
     thread_local std::vector<RequestInsertionCandidate> candidates;
+
+    // 1. Direct and walk candidates (few): the maxResults best feasible ones.
     candidates.clear();
     collectDirect(solution, requestId, candidates);
     collectWalk(solution, requestId, candidates);
-    collectTransfer(solution, requestId, candidates);
+    std::vector<RequestInsertionCandidate> pool = verifyInOrder(solution, candidates, maxResults);
 
+    // 2. 2-vehicle candidates (by far the most numerous): only those that can
+    // still make it into the result, i.e. strictly cheaper than the worst of
+    // the maxResults found in step 1 -- at equal cost a 2-vehicle candidate
+    // ranks after direct and walk ones (candidateLess).
+    int costBound = (static_cast<int>(pool.size()) == maxResults) ? pool.back().cost
+                                                                  : InsertionEvaluator::kNoCostBound;
+    candidates.clear();
+    collectTransfer(solution, requestId, costBound, candidates);
+    for (const auto& c : verifyInOrder(solution, candidates, maxResults)) pool.push_back(c);
+
+    // 3. The maxResults best of both.
+    std::sort(pool.begin(), pool.end(), candidateLess);
+    if (static_cast<int>(pool.size()) > maxResults) pool.resize(maxResults);
+    return pool;
+}
+
+std::vector<RequestInsertionCandidate> RequestInsertionSearch::verifyInOrder(
+    const Solution& solution, std::vector<RequestInsertionCandidate>& candidates, int maxResults) const {
     // A heap rather than a full sort: only the candidates actually checked
     // are ordered, in exactly the order a sort would give (candidateLess is a
     // strict total order). std heaps put the largest on top, hence the swap.
@@ -212,13 +236,13 @@ std::vector<RequestInsertionCandidate> RequestInsertionSearch::findInsertions(co
     };
     std::make_heap(candidates.begin(), candidates.end(), worse);
 
-    std::vector<RequestInsertionCandidate> pool;
-    while (!candidates.empty() && static_cast<int>(pool.size()) < maxResults) {
+    std::vector<RequestInsertionCandidate> feasible;
+    while (!candidates.empty() && static_cast<int>(feasible.size()) < maxResults) {
         std::pop_heap(candidates.begin(), candidates.end(), worse);  // cheapest moved to the back
-        if (verifyCandidate(solution, candidates.back())) pool.push_back(candidates.back());
+        if (verifyCandidate(solution, candidates.back())) feasible.push_back(candidates.back());
         candidates.pop_back();
     }
-    return pool;
+    return feasible;
 }
 
 void RequestInsertionSearch::apply(Solution& solution, const RequestInsertionCandidate& candidate) const {

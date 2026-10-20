@@ -31,11 +31,11 @@ struct RequestInsertionCandidate {
 
 // Orchestrates InsertionEvaluator across every route and every pattern (direct,
 // walk, 2-vehicle transfer) to find the best way(s) to insert one currently
-// unassigned request: every candidate of every pattern admitted by the O(1)
-// test (InsertionEvaluator) goes into ONE list, sorted once (see
-// candidateLess), then the exact STP check runs in that order until enough
-// feasible ones are found -- so no STP check is ever spent on a candidate
-// costlier than the ones finally returned.
+// unassigned request. Candidates admitted by the O(1) test (InsertionEvaluator)
+// are checked by the exact STP in cost order (candidateLess) until enough
+// feasible ones are found: first the direct and walk ones, then only the
+// 2-vehicle ones that can still beat them (see findInsertions) -- the latter
+// being by far the most numerous, most of them are never even generated.
 class RequestInsertionSearch {
 public:
     // Returns up to maxResults feasible ways to insert `requestId`, sorted by
@@ -54,11 +54,20 @@ private:
     // O(1) test -- none of them checked by the STP yet.
     void collectDirect(const Solution& solution, int requestId, std::vector<RequestInsertionCandidate>& out) const;
     void collectWalk(const Solution& solution, int requestId, std::vector<RequestInsertionCandidate>& out) const;
-    // Exhaustive: every (first leg, last leg) combination -- every valid pair
-    // of PT stops, every pair of distinct routes, every position admitted for
-    // each leg -- that passes the O(1) test of the whole request
+    // Exhaustive below costBound: every (first leg, last leg) combination --
+    // every valid pair of PT stops, every pair of distinct routes, every
+    // position admitted for each leg -- costing strictly less than costBound
+    // and passing the O(1) test of the whole request
     // (InsertionEvaluator::admitsTransfer).
-    void collectTransfer(const Solution& solution, int requestId, std::vector<RequestInsertionCandidate>& out) const;
+    void collectTransfer(const Solution& solution, int requestId, int costBound,
+                         std::vector<RequestInsertionCandidate>& out) const;
+
+    // Checks `candidates` with verifyCandidate in candidateLess order until
+    // maxResults feasible ones are found, and returns them in that order.
+    // Consumes `candidates` (left in an unspecified state).
+    std::vector<RequestInsertionCandidate> verifyInOrder(const Solution& solution,
+                                                          std::vector<RequestInsertionCandidate>& candidates,
+                                                          int maxResults) const;
 
     // Exact check of any candidate: its stop(s), and Transfer if any, are
     // inserted in a copy of `solution`, then capacity and the STP of the

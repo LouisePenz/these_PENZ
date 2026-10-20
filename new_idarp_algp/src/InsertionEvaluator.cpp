@@ -154,7 +154,7 @@ bool InsertionEvaluator::admitsTransfer(const Solution& solution, const Insertio
 
 std::vector<InsertionEvaluator::InsertionResult> InsertionEvaluator::generateCandidates(
     const Solution& solution, int routeIndex, const RouteStop& pickupTemplate, const RouteStop& deliveryTemplate,
-    int maxRideTime) const {
+    int maxRideTime, int costBound) const {
     const Route& route = solution.route(routeIndex);
     const TravelTimeProvider& tt = solution.instance().travelTimes();
     int n = route.size();
@@ -165,27 +165,30 @@ std::vector<InsertionEvaluator::InsertionResult> InsertionEvaluator::generateCan
         int afterP = route.pointAfter(posPickup);
 
         // Delivery immediately after pickup: 3-leg formula, replacing (beforeP,afterP) directly.
-        if (estimateLeg(solution, routeIndex, posPickup, posPickup, pickupTemplate, deliveryTemplate, maxRideTime)
+        int adjacentCost = tt.driveTime(beforeP, pickupTemplate.pointId) +
+                           tt.driveTime(pickupTemplate.pointId, deliveryTemplate.pointId) +
+                           tt.driveTime(deliveryTemplate.pointId, afterP) - tt.driveTime(beforeP, afterP);
+        if (adjacentCost < costBound &&
+            estimateLeg(solution, routeIndex, posPickup, posPickup, pickupTemplate, deliveryTemplate, maxRideTime)
                 .admitted) {
-            int adjacentCost = tt.driveTime(beforeP, pickupTemplate.pointId) +
-                               tt.driveTime(pickupTemplate.pointId, deliveryTemplate.pointId) +
-                               tt.driveTime(deliveryTemplate.pointId, afterP) - tt.driveTime(beforeP, afterP);
             candidates.push_back({routeIndex, posPickup, posPickup, adjacentCost});
         }
 
         // Delivery at a later gap: independent insertion costs, using the
         // original route's neighbors (unaffected by pickup's insertion). The
         // pickup's part of the test only depends on posPickup: done once.
-        FirstStop pickupPlaced = placeFirst(solution, routeIndex, posPickup, pickupTemplate);
-        if (!pickupPlaced.admitted) continue;
         int costPickupAlone = tt.driveTime(beforeP, pickupTemplate.pointId) +
                               tt.driveTime(pickupTemplate.pointId, afterP) - tt.driveTime(beforeP, afterP);
+        if (costPickupAlone >= costBound) continue;
+        FirstStop pickupPlaced = placeFirst(solution, routeIndex, posPickup, pickupTemplate);
+        if (!pickupPlaced.admitted) continue;
         for (int posDelivery = posPickup + 1; posDelivery <= n; ++posDelivery) {
-            if (!placeSecond(solution, pickupPlaced, posDelivery, deliveryTemplate, maxRideTime).admitted) continue;
             int beforeD = route.pointBefore(posDelivery);
             int afterD = route.pointAfter(posDelivery);
             int costDeliveryAlone = tt.driveTime(beforeD, deliveryTemplate.pointId) +
                                     tt.driveTime(deliveryTemplate.pointId, afterD) - tt.driveTime(beforeD, afterD);
+            if (costPickupAlone + costDeliveryAlone >= costBound) continue;
+            if (!placeSecond(solution, pickupPlaced, posDelivery, deliveryTemplate, maxRideTime).admitted) continue;
             candidates.push_back({routeIndex, posPickup, posDelivery, costPickupAlone + costDeliveryAlone});
         }
     }
