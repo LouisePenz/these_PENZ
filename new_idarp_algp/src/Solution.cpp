@@ -96,6 +96,13 @@ bool Solution::buildDarpGraph(const std::vector<int>& affectedRoutes, DarpGraph&
         graph.routeOffset[r] = graph.nbNodes;
         graph.nbNodes += routes_[r].size() + 2;
     }
+    graph.earliestStart.assign(graph.nbNodes, 0);
+    graph.latestStart.assign(graph.nbNodes, H);
+    for (int r : affectedRoutes) {
+        graph.latestStart[graph.routeOffset[r]] = 0;  // depot departure, fixed at 0
+        graph.latestStart[graph.routeOffset[r] + routes_[r].size() + 1] = routes_[r].depotReturnDeadline();
+    }
+    graph.earliestStart[0] = H;
 
     // Where each request's stops are, by role, gathered in the same single
     // pass as the route arcs.
@@ -201,6 +208,10 @@ bool Solution::buildDarpGraph(const std::vector<int>& affectedRoutes, DarpGraph&
         graph.arcs.push_back({nearSlot.node, 0, H - nearSlot.stop->windowLtw});
         graph.arcs.push_back({farSlot.node, 0, H - farSlot.stop->windowLtw});
         graph.arcs.push_back({nearSlot.node, farSlot.node, maxRideTime});
+        for (const Slot& slot : {nearSlot, farSlot}) {
+            graph.earliestStart[slot.node] = std::max(0, slot.stop->windowLtw);
+            graph.latestStart[slot.node] = std::min(H, slot.stop->windowUtw);
+        }
     }
     return true;
 }
@@ -211,13 +222,15 @@ bool Solution::propagateForwardDarp(const std::vector<int>& affectedRoutes, bool
     if (!buildDarpGraph(affectedRoutes, graph)) return false;
 
     // Earliest schedule: every node starts low and is pushed up. Start values:
-    // artificial depot at H, route depots and every stop at 0 -- or, with
-    // warmStart, every stop at its current ltwDarp (see the header).
-    std::vector<int> value(graph.nbNodes, 0);
-    value[0] = H;
+    // the instance's lower bounds (graph.earliestStart) -- with warmStart,
+    // raised to the stops' current ltwDarp (see the header).
+    std::vector<int> value = graph.earliestStart;
     if (warmStart) {
         for (int r : affectedRoutes)
-            for (int i = 0; i < routes_[r].size(); ++i) value[graph.stopNode(r, i)] = routes_[r].stopAt(i).ltwDarp;
+            for (int i = 0; i < routes_[r].size(); ++i) {
+                int node = graph.stopNode(r, i);
+                value[node] = std::max(value[node], routes_[r].stopAt(i).ltwDarp);
+            }
     }
 
     // Bellman-Ford relaxation. Values are final after |V| - 1 passes if there
@@ -251,21 +264,18 @@ bool Solution::propagateForwardDarp(){
 }
 
 bool Solution::propagateBackwardDarp(const std::vector<int>& affectedRoutes) {
-    const int H = instance_->horizonTime();
     DarpGraph graph;
     if (!buildDarpGraph(affectedRoutes, graph)) return false;
 
-    // Latest schedule: the mirror of propagateForwardDarp -- every stop starts
-    // as high as possible (H) and is pulled down: value(to) <= value(from) +
-    // weight. The artificial depot (H) and the route depots (departure at 0)
-    // are fixed: having to pull one of them down means no schedule exists.
-    std::vector<int> value(graph.nbNodes, H);
+    // Latest schedule: the mirror of propagateForwardDarp -- every node starts
+    // high (the instance's upper bounds, graph.latestStart) and is pulled
+    // down: value(to) <= value(from) + weight. The artificial depot (H) and
+    // the route depots (departure at 0) are fixed: having to pull one of them
+    // down means no schedule exists.
+    std::vector<int> value = graph.latestStart;
     std::vector<char> fixed(graph.nbNodes, 0);
     fixed[0] = 1;
-    for (int r : affectedRoutes) {
-        value[graph.routeOffset[r]] = 0;
-        fixed[graph.routeOffset[r]] = 1;
-    }
+    for (int r : affectedRoutes) fixed[graph.routeOffset[r]] = 1;
 
     bool converged = false;
     for (int pass = 0; pass < graph.nbNodes && !converged; ++pass) {

@@ -138,6 +138,14 @@ private:
         std::vector<int> routeOffset;  // indexed by route, -1 outside the set
         int nbNodes = 1;
         std::vector<Arc> arcs;
+        // Start values of the relaxations, from the instance alone: a node's
+        // own window when it is a constraint of this STP (the two nodes each
+        // request's window and maximum ride time apply to), the depot's
+        // return deadline, 0 / the horizon otherwise. Valid lower / upper
+        // bounds of every feasible schedule, so starting there gives the same
+        // result as starting from 0 / the horizon, in fewer passes.
+        std::vector<int> earliestStart;
+        std::vector<int> latestStart;
         int stopNode(int route, int position) const { return routeOffset[route] + 1 + position; }
     };
 
