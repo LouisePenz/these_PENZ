@@ -42,9 +42,23 @@ CPOPTIMIZERDIR=$(CPLEXDIR)/cpoptimizer
 MAINFILES :=$(SRCDIR)/main_LNS.cpp $(SRCDIR)/main_nb_vehicles.cpp
 # Binaries corresponding to each file with a main() function
 BINARIES  :=$(BINDIR)/main_LNS $(BINDIR)/main_nb_vehicles
-# Compiler & linker flags
-CXX      :=g++ -O1 -fsanitize=address,undefined -fno-omit-frame-pointer
-CXXFLAGS :=-std=c++17 -Wall -Werror -DIL_STD -O0 -g
+# Compiler & linker flags. Build mode, chosen on the command line:
+#   make                  optimized, for experiments (irace, run_tests.sh, ...)
+#   make MODE=debug       -O0 -g + AddressSanitizer/UBSan, to track memory bugs
+#   make MODE=profile     optimized + -pg, for gprof (each run writes gmon.out)
+# Switching mode rebuilds everything automatically (see BUILDFLAGS below).
+MODE     ?=release
+CXX      :=g++
+CXXFLAGS :=-std=c++17 -Wall -Werror -DIL_STD
+ifeq ($(MODE),release)
+  CXXFLAGS +=-O2 -DNDEBUG
+else ifeq ($(MODE),debug)
+  CXXFLAGS +=-O0 -g -fsanitize=address,undefined -fno-omit-frame-pointer
+else ifeq ($(MODE),profile)
+  CXXFLAGS +=-O2 -g -DNDEBUG -pg
+else
+  $(error Unknown MODE '$(MODE)': use release, debug or profile)
+endif
 #LDFLAGS := -L$(CPLEXDIR)/cplex/lib/x86-64_linux/static_pic \
 #           -L$(CPLEXDIR)/concert/lib/x86-64_linux/static_pic \
 #           -L$(CPLEXDIR)/cpoptimizer/lib/x86-64_linux/static_pic \
@@ -56,9 +70,9 @@ CXXFLAGS :=-std=c++17 -Wall -Werror -DIL_STD -O0 -g
 
 
 LDFLAGS  := -L$(CPLEXDIR)/cplex/lib/x86-64_linux/static_pic -L$(CPLEXDIR)/concert/lib/x86-64_linux/static_pic -L$(CPLEXDIR)/cpoptimizer/lib/x86-64_linux/static_pic -L$(CPLEXDIR)/opl/lib/x86-64_linux/static_pic -L$(CPLEXDIR)/opl/bin/x86-64_linux/ -L/usr/lib/x86_64-linux-gnu/
-LDLIBS   :=-pg -lm -licuuc -licui18n -licuio -licudata -lpthread -ldl # -loplnl1   -lconfig -lconfig++  -lcplex2211 -lconcert -lopl -lcp -lilocplex -liljs
+LDLIBS   :=-lm -licuuc -licui18n -licuio -licudata -lpthread -ldl # -loplnl1   -lconfig -lconfig++  -lcplex2211 -lconcert -lopl -lcp -lilocplex -liljs
 
-INCLUDE  :=-pg -I$(INCDIR)  -I$(CPLEXDIR)/cplex/include -I$(CPLEXDIR)/concert/include -I$(CPLEXDIR)/cpoptimizer/include -I$(CPLEXDIR)/opl/include 
+INCLUDE  :=-I$(INCDIR)  -I$(CPLEXDIR)/cplex/include -I$(CPLEXDIR)/concert/include -I$(CPLEXDIR)/cpoptimizer/include -I$(CPLEXDIR)/opl/include 
 ### TESTS-RELATED VARIABLES
 # Files containing the main() function
 TMAINFILES :=$(wildcard $(TSTDIR)/*.cpp)
@@ -142,7 +156,8 @@ ifeq ($(DEBUG),0)
 SILENT :=@
 endif
 
-.PHONY: all makedir clean distclean tests $(ALLCALLS)
+.PHONY: all makedir clean distclean tests $(ALLCALLS) FORCE
+
 
 ################################# MAIN RULES ##################################
 all: makedir $(BINARIES)
@@ -154,10 +169,16 @@ $(BINARIES) $(TBINARIES):
 	$(SILENT) mkdir -p $(dir $@)
 	$(SILENT) $(CXX) $(CXXFLAGS) $(LDFLAGS) $(INCLUDE) $^ $(LDLIBS) -o $@
 
-$(OBJDIR)/%.o: %.cpp
+$(OBJDIR)/%.o: %.cpp $(OBJDIR)/.buildflags
 	$(INFO) "[  $(CXX)  ] $< -> .o"
 	$(SILENT) mkdir -p $(OBJDIR)/$(*D)
 	$(SILENT) $(CXX) $(CXXFLAGS) $(INCLUDE) -c $< -o $@
+
+# Records the compiler flags of the last build: when they change (e.g. a new
+# MODE), every object is rebuilt instead of mixing objects from two modes.
+$(OBJDIR)/.buildflags: FORCE
+	$(SILENT) mkdir -p $(OBJDIR)
+	$(SILENT) echo '$(CXX) $(CXXFLAGS) $(INCLUDE)' | cmp -s - $@ || echo '$(CXX) $(CXXFLAGS) $(INCLUDE)' > $@
 
 $(DEPDIR)/%.d: %.cpp
 	$(SILENT) $(sh_nop) $(call makedeps,$@,$<,$*)
