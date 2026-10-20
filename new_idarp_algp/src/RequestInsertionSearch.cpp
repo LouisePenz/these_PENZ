@@ -190,7 +190,9 @@ bool RequestInsertionSearch::verifyCandidate(const Solution& solution,
         route.recomputeLoad();
         if (!route.hasFreeCapacity(0, route.size() - 1, 0)) return false;
     }
-    return trial.propagateForwardDarp(trial.dependentRoutes(candidate.leg1.routeIndex));
+    // Warm start: `solution`'s ltwDarp are exact (refreshTiming after every
+    // change), and the trial only adds this candidate's stops (ltwDarp = 0).
+    return trial.propagateForwardDarp(trial.dependentRoutes(candidate.leg1.routeIndex), /*warmStart=*/true);
 }
 
 std::vector<RequestInsertionCandidate> RequestInsertionSearch::findInsertions(const Solution& solution,

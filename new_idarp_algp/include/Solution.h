@@ -34,22 +34,6 @@ public:
     void markUnassigned(int requestId) { unassignedRequests_.push_back(requestId); }
     void markAssigned(int requestId);
 
-    // A node in the constraint graph: (routeIndex, position), where position
-    // -1 means "that route's own depot" (departure), kRouteEndPosition (-2)
-    // its return to the depot, and (-1, -1) is the single shared artificial
-    // depot used to anchor every request's absolute time window.
-    using NodeRef = std::pair<int, int>;
-
-    // The two nodes and the maximum-ride-time value a request's direct/2-vehicle/
-    // walk pattern reduces to (see the discussion on why every pattern collapses
-    // into this single shape once walk/PT durations are folded into derived
-    // windows).
-    struct RideTimeLink {
-        NodeRef nearNode;
-        NodeRef farNode;
-        int maxRideTime;
-    };
-
     // Every route index reachable from `start` by following Transfer links --
     // the set of routes that must be propagated together in a single call to
     // propagateForwardDarp (they share constraints through their transfers).
@@ -61,20 +45,18 @@ public:
     // the result of dependentRoutes()): a request split across a route that
     // isn't included won't be checked, silently.
     //
-    // `overrides` lets a caller supply the RideTimeLink for specific requests
-    // directly instead of letting it be auto-detected from the roles present
-    // in affectedRoutes -- needed when testing one leg of a 2-vehicle request
-    // in isolation (Pickup+StopBefore only, no partner yet), which would
-    // otherwise be silently mistaken for a walk pattern. See the discussion
-    // on why InsertionEvaluator needs this rather than a hidden flag on
-    // RouteStop.
-    //
     // On success, updates RouteStop::ltwDarp (earliest feasible time) for
     // every stop in `affectedRoutes` and returns true. On failure, returns
-    // false; the ltwDarp values may be left inconsistent and must not be
-    // trusted -- re-run or discard the change that triggered this call.
-    bool propagateForwardDarp(const std::vector<int>& affectedRoutes,
-                               const std::vector<std::pair<int, RideTimeLink>>& overrides = {});
+    // false and leaves every ltwDarp untouched.
+    //
+    // warmStart: start the relaxation from the stops' current ltwDarp instead
+    // of 0 -- same result, fewer passes. ONLY valid when every current ltwDarp
+    // is a lower bound of the new earliest schedule, i.e. when this solution
+    // is a solution whose ltwDarp were exact (refreshTiming keeps them so)
+    // with requests ADDED only (new stops carry ltwDarp = 0). After a
+    // removal, windows widen, earliest times can decrease, and a warm start
+    // would return wrong (too late) times -- never use it there.
+    bool propagateForwardDarp(const std::vector<int>& affectedRoutes, bool warmStart = false);
 
     bool propagateForwardDarp();
 
@@ -141,38 +123,29 @@ public:
     int nbUsedRoutes();
 
 private:
-    static const NodeRef kArtificialDepot;
-    static const int kRouteEndPosition;
-
-    struct NodeRefHash {
-        size_t operator()(const NodeRef& n) const noexcept {
-            // n.first can be -1 (artificial depot, or a route's own depot
-            // position uses -1 for n.second too) -- shifting a negative
-            // signed value is undefined behavior, so reinterpret as unsigned
-            // first (bit pattern preserved, just no longer "negative").
-            long long high = static_cast<long long>(static_cast<unsigned int>(n.first));
-            return std::hash<long long>()((high << 32) ^ static_cast<unsigned int>(n.second));
-        }
-    };
-
-    // One difference constraint: value(to) - value(from) <= weight.
-    struct Arc {
-        NodeRef from;
-        NodeRef to;
-        int weight;
+    // The STP restricted to a closed set of routes, on integer nodes: 0 is the
+    // artificial depot (fixed at the horizon, anchors every absolute window);
+    // a route r of the set owns routeOffset[r] (its depot departure, fixed at
+    // 0), routeOffset[r] + 1 + i (its stop i) and routeOffset[r] + size + 1
+    // (its return to the depot).
+    struct DarpGraph {
+        // One difference constraint: value(to) - value(from) <= weight.
+        struct Arc {
+            int from;
+            int to;
+            int weight;
+        };
+        std::vector<int> routeOffset;  // indexed by route, -1 outside the set
+        int nbNodes = 1;
+        std::vector<Arc> arcs;
+        int stopNode(int route, int position) const { return routeOffset[route] + 1 + position; }
     };
 
     // Builds every constraint of the STP restricted to affectedRoutes (route
-    // chains, depot returns, transfers, windows, maximum ride times). Returns
-    // false if a request in those routes matches no known pattern.
-    bool buildDarpArcs(const std::vector<int>& affectedRoutes,
-                       const std::vector<std::pair<int, RideTimeLink>>& overrides, std::vector<Arc>& arcs) const;
-
-    // Auto-detects the RideTimeLink for a request from the roles present in
-    // affectedRoutes. Returns false if the request isn't (fully) present.
-    bool findRideTimeLink(int requestId, const std::vector<int>& affectedRoutes, RideTimeLink& outLink) const;
-
-    const RouteStop& stopAtNode(NodeRef node) const { return routes_[node.first].stopAt(node.second); }
+    // chains, depot returns, transfers, windows, maximum ride times), in one
+    // pass over their stops and the transfers. Returns false if a request in
+    // those routes matches no known pattern.
+    bool buildDarpGraph(const std::vector<int>& affectedRoutes, DarpGraph& graph) const;
 
     const Instance* instance_;
     std::vector<Route> routes_;

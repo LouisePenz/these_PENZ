@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <iostream>
-#include <unordered_map>
 #include <unordered_set>
 #include <numeric>
 
@@ -20,9 +19,6 @@ const char* roleName(StopRole role) {
 }
 }  // namespace
 
-
-const Solution::NodeRef Solution::kArtificialDepot{-1, -1};
-const int Solution::kRouteEndPosition = -2;
 
 Solution::Solution(const Instance& instance) : instance_(&instance) {
     routes_.reserve(instance.nbVehicles());
@@ -90,176 +86,149 @@ std::vector<int> Solution::dependentRoutes(int start) const {
     return std::vector<int>(visited.begin(), visited.end());
 }
 
-bool Solution::findRideTimeLink(int requestId, const std::vector<int>& affectedRoutes, RideTimeLink& outLink) const {
-    // 2-vehicle case: looked up directly, not re-derived from route roles.
-    for (const Transfer& t : transfers_) {
-        if (t.requestId == requestId) {
-            outLink = {{t.routeBefore, t.posPickup},
-                       {t.routeAfter, t.posDelivery},
-                       instance_->request(requestId).maxRideTime()};
-            return true;
-        }
-    }
-
-    // Otherwise: {Pickup, Delivery} (direct), or {StopAfter, Delivery} / {Pickup,
-    // StopBefore} (walk on one side -- the stop plays the role of the missing end,
-    // with its own derived window, already stored in its RouteStop).
-    NodeRef pickupNode{-2, -2}, deliveryNode{-2, -2}, stopNode{-2, -2};
-    bool hasPickup = false, hasDelivery = false, hasStop = false;
-    StopRole stopRole = StopRole::StopBefore;
-
-    for (int r : affectedRoutes) {
-        const Route& route = routes_[r];
-        for (int i = 0; i < route.size(); ++i) {
-            const RouteStop& s = route.stopAt(i);
-            if (s.requestId != requestId) continue;
-            if (s.role == StopRole::Pickup) {
-                pickupNode = {r, i};
-                hasPickup = true;
-            } else if (s.role == StopRole::Delivery) {
-                deliveryNode = {r, i};
-                hasDelivery = true;
-            } else {
-                stopNode = {r, i};
-                hasStop = true;
-                stopRole = s.role;
-            }
-        }
-    }
-
-    if (hasPickup && hasDelivery && !hasStop) {
-        outLink = {pickupNode, deliveryNode, instance_->request(requestId).maxRideTime()};
-        return true;
-    }
-    // Walk patterns: the walk must be on the right side and the stop one of its
-    // candidates -- otherwise this is e.g. one leg of a 2-vehicle request.
-    const WalkAccess& walk = instance_->request(requestId).walkAccess();
-    auto isWalkStop = [&walk, this](NodeRef node) {
-        const std::vector<int>& stops = walk.complementaryStops();
-        return std::find(stops.begin(), stops.end(), stopAtNode(node).pointId) != stops.end();
-    };
-    if (hasStop && hasDelivery && !hasPickup && stopRole == StopRole::StopAfter &&
-        walk.side() == WalkSide::AtPickup && isWalkStop(stopNode)) {
-        outLink = {stopNode, deliveryNode, instance_->maxRideTimeLegWithWalk(requestId, stopAtNode(stopNode).pointId)};
-        return true;
-    }
-    if (hasPickup && hasStop && !hasDelivery && stopRole == StopRole::StopBefore &&
-        walk.side() == WalkSide::AtDelivery && isWalkStop(stopNode)) {
-        outLink = {pickupNode, stopNode, instance_->maxRideTimeLegWithWalk(requestId, stopAtNode(stopNode).pointId)};
-        return true;
-    }
-    return false;
-}
-
-bool Solution::buildDarpArcs(const std::vector<int>& affectedRoutes,
-                             const std::vector<std::pair<int, RideTimeLink>>& overrides,
-                             std::vector<Arc>& arcs) const {
+bool Solution::buildDarpGraph(const std::vector<int>& affectedRoutes, DarpGraph& graph) const {
     const int H = instance_->horizonTime();
-    arcs.clear();
-    std::unordered_set<int> requestsSeen;
+    const TravelTimeProvider& tt = instance_->travelTimes();
+    graph.routeOffset.assign(routes_.size(), -1);
+    graph.nbNodes = 1;  // node 0: the artificial depot
+    graph.arcs.clear();
+    for (int r : affectedRoutes) {
+        graph.routeOffset[r] = graph.nbNodes;
+        graph.nbNodes += routes_[r].size() + 2;
+    }
+
+    // Where each request's stops are, by role, gathered in the same single
+    // pass as the route arcs.
+    struct Slot {
+        int node = -1;
+        const RouteStop* stop = nullptr;
+    };
+    struct Placement {
+        Slot pickup, delivery, stopBefore, stopAfter;
+        bool transfer = false;
+    };
+    std::vector<Placement> placements(instance_->nbRequests());
+    std::vector<int> requestsSeen;
 
     // Route chain arcs: value(succ) >= value(pred) + driveTime + serviceTime(pred).
     for (int r : affectedRoutes) {
         const Route& route = routes_[r];
-        NodeRef depotNode{r, -1};
-
-        NodeRef prev = depotNode;
+        int prevNode = graph.routeOffset[r];  // depot departure
         int prevPointId = route.depotPointId();
         int prevServiceTime = 0;
         for (int i = 0; i < route.size(); ++i) {
             const RouteStop& s = route.stopAt(i);
-            NodeRef cur{r, i};
-            arcs.push_back({cur, prev, -instance_->travelTimes().driveTime(prevPointId, s.pointId) - prevServiceTime});
-            prev = cur;
+            int node = graph.stopNode(r, i);
+            graph.arcs.push_back({node, prevNode, -tt.driveTime(prevPointId, s.pointId) - prevServiceTime});
+            prevNode = node;
             prevPointId = s.pointId;
             prevServiceTime = s.serviceTime;
-            requestsSeen.insert(s.requestId);
+
+            Placement& p = placements[s.requestId];
+            bool firstSeen = !p.pickup.stop && !p.delivery.stop && !p.stopBefore.stop && !p.stopAfter.stop;
+            if (firstSeen) requestsSeen.push_back(s.requestId);
+            Slot& slot = (s.role == StopRole::Pickup)       ? p.pickup
+                         : (s.role == StopRole::Delivery)   ? p.delivery
+                         : (s.role == StopRole::StopBefore) ? p.stopBefore
+                                                            : p.stopAfter;
+            slot = {node, &s};
         }
 
         // Return to the depot: value(end) >= value(last) + serviceTime(last) +
         // driveTime(last, depot), and value(end) <= the route's return deadline.
         if (!route.empty()) {
-            NodeRef endNode{r, kRouteEndPosition};
-            arcs.push_back({endNode, prev, -instance_->travelTimes().driveTime(prevPointId, route.depotPointId()) -
-                                               prevServiceTime});
-            arcs.push_back({kArtificialDepot, endNode, route.depotReturnDeadline() - H});
+            int endNode = graph.routeOffset[r] + route.size() + 1;
+            graph.arcs.push_back({endNode, prevNode, -tt.driveTime(prevPointId, route.depotPointId()) - prevServiceTime});
+            graph.arcs.push_back({0, endNode, route.depotReturnDeadline() - H});
         }
     }
 
     // Transfer arcs (2-vehicle case only): value(stopAfter) >= value(stopBefore)
-    // + ptTravelTime + serviceTime(stopBefore). Only added when both ends are
-    // in the affected set -- otherwise this Transfer isn't part of this call.
+    // + ptTravelTime + serviceTime(stopBefore). Only when both ends are in the
+    // affected set -- otherwise this Transfer isn't part of this call.
     for (const Transfer& t : transfers_) {
-        bool beforeIn = std::find(affectedRoutes.begin(), affectedRoutes.end(), t.routeBefore) != affectedRoutes.end();
-        bool afterIn = std::find(affectedRoutes.begin(), affectedRoutes.end(), t.routeAfter) != affectedRoutes.end();
-        if (!beforeIn || !afterIn) continue;
-
-        NodeRef stopBeforeNode{t.routeBefore, t.posStopBefore};
-        NodeRef stopAfterNode{t.routeAfter, t.posStopAfter};
+        if (graph.routeOffset[t.routeBefore] < 0 || graph.routeOffset[t.routeAfter] < 0) continue;
         int stopBeforeServiceTime = routes_[t.routeBefore].stopAt(t.posStopBefore).serviceTime;
-        arcs.push_back({stopAfterNode, stopBeforeNode, -t.ptTravelTime - stopBeforeServiceTime});
+        graph.arcs.push_back({graph.stopNode(t.routeAfter, t.posStopAfter), graph.stopNode(t.routeBefore, t.posStopBefore),
+                              -t.ptTravelTime - stopBeforeServiceTime});
+        placements[t.requestId].transfer = true;
     }
 
-    // Per-request window + maximum-ride-time arcs, anchored to the artificial depot.
-    for (int reqId : requestsSeen) {
-        RideTimeLink link;
+    // Per request: the two nodes its window and maximum ride time apply to --
+    // pickup/delivery (direct, 2-vehicle), or the vehicle-side PT stop in
+    // place of the walked end (walk patterns, with the stop's derived window
+    // and leg maximum ride time) -- anchored to the artificial depot.
+    for (int requestId : requestsSeen) {
+        const Placement& p = placements[requestId];
+        const Request& request = instance_->request(requestId);
+        const WalkAccess& walk = request.walkAccess();
+        auto isWalkStop = [&walk](const Slot& slot) {
+            const std::vector<int>& stops = walk.complementaryStops();
+            return std::find(stops.begin(), stops.end(), slot.stop->pointId) != stops.end();
+        };
+        bool pickup = p.pickup.stop, delivery = p.delivery.stop, before = p.stopBefore.stop, after = p.stopAfter.stop;
 
-        auto overrideIt = std::find_if(overrides.begin(), overrides.end(),
-                                        [reqId](const std::pair<int, RideTimeLink>& p) { return p.first == reqId; });
-        if (overrideIt != overrides.end()) {
-            link = overrideIt->second;
-        } else if (!findRideTimeLink(reqId, affectedRoutes, link)) {
+        Slot nearSlot, farSlot;
+        int maxRideTime = 0;
+        if (p.transfer && pickup && delivery && before && after) {
+            nearSlot = p.pickup;
+            farSlot = p.delivery;
+            maxRideTime = request.maxRideTime();
+        } else if (!p.transfer && pickup && delivery && !before && !after) {
+            nearSlot = p.pickup;
+            farSlot = p.delivery;
+            maxRideTime = request.maxRideTime();
+        } else if (!p.transfer && after && delivery && !pickup && !before && walk.side() == WalkSide::AtPickup &&
+                   isWalkStop(p.stopAfter)) {
+            nearSlot = p.stopAfter;
+            farSlot = p.delivery;
+            maxRideTime = walk.maxRideTimeForStop(p.stopAfter.stop->pointId);
+        } else if (!p.transfer && pickup && before && !delivery && !after && walk.side() == WalkSide::AtDelivery &&
+                   isWalkStop(p.stopBefore)) {
+            nearSlot = p.pickup;
+            farSlot = p.stopBefore;
+            maxRideTime = walk.maxRideTimeForStop(p.stopBefore.stop->pointId);
+        } else {
             // Skipping it would silently drop every time constraint of this
-            // request -- always a bug upstream (e.g. one leg of a 2-vehicle
-            // request tested without an override), never a legitimate state.
-            std::cerr << "[buildDarpArcs] request " << reqId
+            // request -- always a bug upstream, never a legitimate state.
+            std::cerr << "[buildDarpGraph] request " << requestId
                       << " is in a route but matches no known pattern -- treated as infeasible\n";
             return false;
         }
 
-        const RouteStop& nearStop = stopAtNode(link.nearNode);
-        const RouteStop& farStop = stopAtNode(link.farNode);
-
-        arcs.push_back({kArtificialDepot, link.nearNode, nearStop.windowUtw - H});
-        arcs.push_back({kArtificialDepot, link.farNode, farStop.windowUtw - H});
-        arcs.push_back({link.nearNode, kArtificialDepot, H - nearStop.windowLtw});
-        arcs.push_back({link.farNode, kArtificialDepot, H - farStop.windowLtw});
-        arcs.push_back({link.nearNode, link.farNode, link.maxRideTime});
+        graph.arcs.push_back({0, nearSlot.node, nearSlot.stop->windowUtw - H});
+        graph.arcs.push_back({0, farSlot.node, farSlot.stop->windowUtw - H});
+        graph.arcs.push_back({nearSlot.node, 0, H - nearSlot.stop->windowLtw});
+        graph.arcs.push_back({farSlot.node, 0, H - farSlot.stop->windowLtw});
+        graph.arcs.push_back({nearSlot.node, farSlot.node, maxRideTime});
     }
     return true;
 }
 
-bool Solution::propagateForwardDarp(const std::vector<int>& affectedRoutes,
-                                     const std::vector<std::pair<int, RideTimeLink>>& overrides) {
+bool Solution::propagateForwardDarp(const std::vector<int>& affectedRoutes, bool warmStart) {
     const int H = instance_->horizonTime();
-    std::vector<Arc> arcs;
-    if (!buildDarpArcs(affectedRoutes, overrides, arcs)) return false;
+    DarpGraph graph;
+    if (!buildDarpGraph(affectedRoutes, graph)) return false;
 
-    // Earliest schedule: every node starts as low as possible (artificial
-    // depot at H, route depots at 0, every stop at 0) and is pushed up.
-    std::unordered_map<NodeRef, int, NodeRefHash> value;
-    value[kArtificialDepot] = H;
-    for (int r : affectedRoutes) value[NodeRef{r, -1}] = 0;
-
-    // Bellman-Ford relaxation over the distinct nodes actually involved in this
-    // call (not the whole solution). Values are final after |V| - 1 passes if
-    // there is no positive cycle; one more pass is needed to see that nothing
-    // changes anymore, hence |V| passes before declaring a cycle.
-    std::unordered_set<NodeRef, NodeRefHash> nodes;
-    for (const Arc& a : arcs) {
-        nodes.insert(a.from);
-        nodes.insert(a.to);
+    // Earliest schedule: every node starts low and is pushed up. Start values:
+    // artificial depot at H, route depots and every stop at 0 -- or, with
+    // warmStart, every stop at its current ltwDarp (see the header).
+    std::vector<int> value(graph.nbNodes, 0);
+    value[0] = H;
+    if (warmStart) {
+        for (int r : affectedRoutes)
+            for (int i = 0; i < routes_[r].size(); ++i) value[graph.stopNode(r, i)] = routes_[r].stopAt(i).ltwDarp;
     }
-    int bound = std::max(1, static_cast<int>(nodes.size()));
 
+    // Bellman-Ford relaxation. Values are final after |V| - 1 passes if there
+    // is no positive cycle; one more pass is needed to see that nothing
+    // changes anymore, hence |V| passes before declaring a cycle.
     bool converged = false;
-    for (int iteration = 0; iteration < bound && !converged; ++iteration) {
+    for (int pass = 0; pass < graph.nbNodes && !converged; ++pass) {
         converged = true;
-        for (const Arc& a : arcs) {
-            int toValue = value[a.to];
-            int fromValue = value[a.from];
-            if (toValue > fromValue + a.weight) {
-                int newValue = toValue - a.weight;
+        for (const DarpGraph::Arc& a : graph.arcs) {
+            if (value[a.to] > value[a.from] + a.weight) {
+                int newValue = value[a.to] - a.weight;
                 if (newValue > H) return false;  // infeasible: window exceeds the horizon
                 value[a.from] = newValue;
                 converged = false;
@@ -270,10 +239,7 @@ bool Solution::propagateForwardDarp(const std::vector<int>& affectedRoutes,
 
     for (int r : affectedRoutes) {
         Route& route = routes_[r];
-        for (int i = 0; i < route.size(); ++i) {
-            auto it = value.find(NodeRef{r, i});
-            if (it != value.end()) route.stopAt(i).ltwDarp = it->second;
-        }
+        for (int i = 0; i < route.size(); ++i) route.stopAt(i).ltwDarp = value[graph.stopNode(r, i)];
     }
     return true;
 }
@@ -286,32 +252,28 @@ bool Solution::propagateForwardDarp(){
 
 bool Solution::propagateBackwardDarp(const std::vector<int>& affectedRoutes) {
     const int H = instance_->horizonTime();
-    std::vector<Arc> arcs;
-    if (!buildDarpArcs(affectedRoutes, {}, arcs)) return false;
+    DarpGraph graph;
+    if (!buildDarpGraph(affectedRoutes, graph)) return false;
 
     // Latest schedule: the mirror of propagateForwardDarp -- every stop starts
     // as high as possible (H) and is pulled down: value(to) <= value(from) +
     // weight. The artificial depot (H) and the route depots (departure at 0)
     // are fixed: having to pull one of them down means no schedule exists.
-    std::unordered_set<NodeRef, NodeRefHash> nodes;
-    for (const Arc& a : arcs) {
-        nodes.insert(a.from);
-        nodes.insert(a.to);
+    std::vector<int> value(graph.nbNodes, H);
+    std::vector<char> fixed(graph.nbNodes, 0);
+    fixed[0] = 1;
+    for (int r : affectedRoutes) {
+        value[graph.routeOffset[r]] = 0;
+        fixed[graph.routeOffset[r]] = 1;
     }
-    std::unordered_map<NodeRef, int, NodeRefHash> value;
-    for (const NodeRef& n : nodes) value[n] = H;
-    for (int r : affectedRoutes) value[NodeRef{r, -1}] = 0;
-    auto isFixed = [](const NodeRef& n) { return n == kArtificialDepot || n.second == -1; };
 
-    int bound = std::max(1, static_cast<int>(nodes.size()));
     bool converged = false;
-    for (int iteration = 0; iteration < bound && !converged; ++iteration) {
+    for (int pass = 0; pass < graph.nbNodes && !converged; ++pass) {
         converged = true;
-        for (const Arc& a : arcs) {
-            int fromValue = value[a.from];
-            if (value[a.to] > fromValue + a.weight) {
-                int newValue = fromValue + a.weight;
-                if (isFixed(a.to) || newValue < 0) return false;
+        for (const DarpGraph::Arc& a : graph.arcs) {
+            if (value[a.to] > value[a.from] + a.weight) {
+                int newValue = value[a.from] + a.weight;
+                if (fixed[a.to] || newValue < 0) return false;
                 value[a.to] = newValue;
                 converged = false;
             }
@@ -321,10 +283,7 @@ bool Solution::propagateBackwardDarp(const std::vector<int>& affectedRoutes) {
 
     for (int r : affectedRoutes) {
         Route& route = routes_[r];
-        for (int i = 0; i < route.size(); ++i) {
-            auto it = value.find(NodeRef{r, i});
-            if (it != value.end()) route.stopAt(i).utwDarp = it->second;
-        }
+        for (int i = 0; i < route.size(); ++i) route.stopAt(i).utwDarp = value[graph.stopNode(r, i)];
     }
     return true;
 }
