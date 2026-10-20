@@ -1,6 +1,7 @@
 #include "RequestInsertionSearch.h"
 
 #include <algorithm>
+#include <iostream>
 
 // TEMPORARY -- wires findInsertions() to the comparison wrapper instead of
 // calling findTransferInsertion() directly, so every real call site prints
@@ -55,7 +56,7 @@ std::vector<RequestInsertionCandidate> RequestInsertionSearch::findDirectInserti
     // one already found feasible elsewhere.
     std::vector<InsertionEvaluator::InsertionResult> allCandidates;
     for (int r = 0; r < solution.nbRoutes(); ++r) {
-        auto cands = evaluator_.generateCandidates(solution, r, pickup, delivery);
+        auto cands = evaluator_.generateCandidates(solution, r, pickup, delivery, req.maxRideTime());
         allCandidates.insert(allCandidates.end(), cands.begin(), cands.end());
     }
     std::sort(allCandidates.begin(), allCandidates.end(), costLess);
@@ -95,6 +96,7 @@ std::vector<RequestInsertionCandidate> RequestInsertionSearch::findWalkInsertion
             nearStop.role = StopRole::StopAfter;
             nearStop.requestId = requestId;
             nearStop.pointId = stopId;
+            nearStop.serviceTime = req.loadingTime();
             nearStop.loadDelta = req.quantity();
             nearStop.windowLtw = w.lowerBound;
             nearStop.windowUtw = w.upperBound;
@@ -104,13 +106,15 @@ std::vector<RequestInsertionCandidate> RequestInsertionSearch::findWalkInsertion
             farStop.role = StopRole::StopBefore;
             farStop.requestId = requestId;
             farStop.pointId = stopId;
+            farStop.serviceTime = req.loadingTime();
             farStop.loadDelta = -req.quantity();
             farStop.windowLtw = w.lowerBound;
             farStop.windowUtw = w.upperBound;
         }
 
         for (int r = 0; r < solution.nbRoutes(); ++r) {
-            auto cands = evaluator_.generateCandidates(solution, r, nearStop, farStop);
+            auto cands = evaluator_.generateCandidates(solution, r, nearStop, farStop,
+                                                     req.walkAccess().maxRideTimeForStop(stopId));
             for (auto& c : cands) allCandidates.push_back({c, nearStop, farStop});
         }
     }
@@ -155,18 +159,31 @@ RequestInsertionSearch::SecondLegResult RequestInsertionSearch::findBestSecondLe
     std::vector<StopAfterCandidate> task2Candidates;
 
     for (int exitStop : req.ptAccess().stopsAfter()) {
+        // stopsBefore/stopsAfter are separate lists: not every combination is a valid pair.
+        if (!instance.isValidStopPair(requestId, entryStop, exitStop)) continue;
         int ptTime = instance.travelTimes().publicTransportTime(entryStop, exitStop);
+
+        // The stop committed to the route carries the pair's static window,
+        // valid whatever later happens to the first leg's route...
         RouteStop stopAfter;
         stopAfter.role = StopRole::StopAfter;
         stopAfter.requestId = requestId;
         stopAfter.pointId = exitStop;
+        stopAfter.serviceTime = req.loadingTime();
         stopAfter.loadDelta = req.quantity();
-        stopAfter.windowLtw = achievedDropoff + ptTime;
-        stopAfter.windowUtw = instance.horizonTime();  // the real constraint is enforced by the whole-request check below
+        TimeWindow w = instance.stopAfterWindow(requestId, entryStop, exitStop);
+        stopAfter.windowLtw = w.lowerBound;
+        stopAfter.windowUtw = w.upperBound;
+
+        // ...while the PDP pre-filter of this search alone may use the tighter
+        // earliest arrival given the first leg as it currently stands.
+        RouteStop searchStopAfter = stopAfter;
+        searchStopAfter.windowLtw = std::max(w.lowerBound, achievedDropoff + req.loadingTime() + ptTime);
 
         for (int r = 0; r < solution.nbRoutes(); ++r) {
             if (r == task1.routeIndex) continue;  // never the same vehicle for both legs
-            auto cands = evaluator_.generateCandidates(solution, r, stopAfter, delivery);
+            auto cands = evaluator_.generateCandidates(solution, r, searchStopAfter, delivery,
+                                                     instance.maxRideTimeLastLeg(requestId));
             for (auto& c : cands) task2Candidates.push_back({c, stopAfter, ptTime});
         }
     }
@@ -174,6 +191,11 @@ RequestInsertionSearch::SecondLegResult RequestInsertionSearch::findBestSecondLe
               [](const auto& a, const auto& b) { return a.result.cost < b.result.cost; });
 
     for (const auto& tc : task2Candidates) {
+        // O(1) test of the whole request (both legs, the transfer, its ride
+        // time) before the exact one.
+        if (!evaluator_.admitsTransfer(solution, task1, pickup, stopBefore, tc.result, tc.stopAfter, delivery,
+                                       tc.ptTravelTime, req.maxRideTime()))
+            continue;
         // Test the whole request: first leg (already in `base`) + this second
         // leg + the actual Transfer edge, so the true maxRideTime(request)
         // applies across the whole pickup -> delivery chain.
@@ -235,12 +257,14 @@ std::vector<RequestInsertionCandidate> RequestInsertionSearch::findTransferInser
         stopBefore.role = StopRole::StopBefore;
         stopBefore.requestId = requestId;
         stopBefore.pointId = entryStop;
+        stopBefore.serviceTime = req.loadingTime();
         stopBefore.loadDelta = -req.quantity();
         stopBefore.windowLtw = w.lowerBound;
         stopBefore.windowUtw = w.upperBound;
 
         for (int r = 0; r < solution.nbRoutes(); ++r) {
-            auto routeFront = evaluator_.generateFrontCandidates(solution, r, pickup, stopBefore, useDropoffMetric);
+            auto routeFront = evaluator_.generateFrontCandidates(solution, r, pickup, stopBefore, useDropoffMetric,
+                                                                  maxRideTimeFirstLeg);
             for (auto& fc : routeFront) globalFront.add({fc, stopBefore, entryStop}, fc.result.cost, fc.metric);
         }
     }
@@ -330,15 +354,13 @@ void RequestInsertionSearch::apply(Solution& solution, const RequestInsertionCan
     solution.insertStopAt(candidate.leg1.routeIndex, candidate.leg1.posFirst, candidate.leg1.firstStop);
     int secondIndex1 = secondStopIndex(candidate.leg1.posFirst, candidate.leg1.posSecond);
     solution.insertStopAt(candidate.leg1.routeIndex, secondIndex1, candidate.leg1.secondStop);
-    solution.route(candidate.leg1.routeIndex).recomputeLoad();
-
-    std::vector<int> affected = solution.dependentRoutes(candidate.leg1.routeIndex);
+    std::vector<int> changed{candidate.leg1.routeIndex};
 
     if (candidate.isTransfer) {
         solution.insertStopAt(candidate.leg2.routeIndex, candidate.leg2.posFirst, candidate.leg2.firstStop);
         int secondIndex2 = secondStopIndex(candidate.leg2.posFirst, candidate.leg2.posSecond);
         solution.insertStopAt(candidate.leg2.routeIndex, secondIndex2, candidate.leg2.secondStop);
-        solution.route(candidate.leg2.routeIndex).recomputeLoad();
+        changed.push_back(candidate.leg2.routeIndex);
 
         Transfer t;
         t.requestId = candidate.requestId;
@@ -350,12 +372,13 @@ void RequestInsertionSearch::apply(Solution& solution, const RequestInsertionCan
         t.posDelivery = secondIndex2;
         t.ptTravelTime = candidate.ptTravelTime;
         solution.addTransfer(t);
-
-        for (int r : solution.dependentRoutes(candidate.leg2.routeIndex)) affected.push_back(r);
-        std::sort(affected.begin(), affected.end());
-        affected.erase(std::unique(affected.begin(), affected.end()), affected.end());
     }
 
     solution.markAssigned(candidate.requestId);
-    solution.propagateForwardDarp(affected);
+    // The candidate was verified on this exact state by findInsertions(), so
+    // this can only fail if verification and commit disagree -- a bug.
+    if (!solution.refreshTiming(changed)) {
+        std::cerr << "[RequestInsertionSearch::apply] committed candidate for request " << candidate.requestId
+                  << " is infeasible -- verification and commit disagree\n";
+    }
 }

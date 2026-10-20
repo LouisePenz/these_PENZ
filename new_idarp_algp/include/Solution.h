@@ -1,11 +1,14 @@
 #pragma once
 
+#include <memory>
 #include <utility>
 #include <vector>
 
 #include "Instance.h"
 #include "Route.h"
 #include "Transfer.h"
+
+class LinkedRoutesTiming;
 
 // The state currently under construction/repair by the LNS: one Route per
 // vehicle, the Transfer links between routes for 2-vehicle PT requests, and
@@ -32,8 +35,9 @@ public:
     void markAssigned(int requestId);
 
     // A node in the constraint graph: (routeIndex, position), where position
-    // -1 means "that route's own depot" and (-1, -1) is the single shared
-    // artificial depot used to anchor every request's absolute time window.
+    // -1 means "that route's own depot" (departure), kRouteEndPosition (-2)
+    // its return to the depot, and (-1, -1) is the single shared artificial
+    // depot used to anchor every request's absolute time window.
     using NodeRef = std::pair<int, int>;
 
     // The two nodes and the maximum-ride-time value a request's direct/2-vehicle/
@@ -73,6 +77,28 @@ public:
                                const std::vector<std::pair<int, RideTimeLink>>& overrides = {});
 
     bool propagateForwardDarp();
+
+    // Same constraint graph, opposite direction: on success, updates
+    // RouteStop::utwDarp (latest feasible time) for every stop in
+    // `affectedRoutes`. Together with ltwDarp, [ltwDarp; utwDarp] is the
+    // exact interval of times each stop can take in SOME feasible schedule of
+    // the current solution -- narrower than the PDP windows, since it accounts
+    // for every route linked by a transfer and for the maximum ride times.
+    bool propagateBackwardDarp(const std::vector<int>& affectedRoutes);
+    bool propagateBackwardDarp();
+
+    // Timing data of the set of linked routes containing `route`, for the O(1)
+    // insertion test (see LinkedRoutesTiming). Up to date as long as every
+    // change to the routes goes through refreshTiming() afterwards.
+    const LinkedRoutesTiming& timing(int route) const;
+
+    // To call after any change to the routes or transfers: on every set of
+    // linked routes containing one of `changedRoutes` -- as they are NOW, so a
+    // removed transfer that split a set, or an added one that merged two, is
+    // handled -- recomputes the loads, re-runs the exact STP forward and
+    // backward (ltwDarp/utwDarp), and rebuilds the timing data. Returns false
+    // if one of those sets has no feasible schedule.
+    bool refreshTiming(const std::vector<int>& changedRoutes);
 
     // Human-readable dump of the current state (routes, stops, transfers,
     // unassigned requests) -- deliberately not the request/instance data
@@ -116,6 +142,7 @@ public:
 
 private:
     static const NodeRef kArtificialDepot;
+    static const int kRouteEndPosition;
 
     struct NodeRefHash {
         size_t operator()(const NodeRef& n) const noexcept {
@@ -135,6 +162,12 @@ private:
         int weight;
     };
 
+    // Builds every constraint of the STP restricted to affectedRoutes (route
+    // chains, depot returns, transfers, windows, maximum ride times). Returns
+    // false if a request in those routes matches no known pattern.
+    bool buildDarpArcs(const std::vector<int>& affectedRoutes,
+                       const std::vector<std::pair<int, RideTimeLink>>& overrides, std::vector<Arc>& arcs) const;
+
     // Auto-detects the RideTimeLink for a request from the roles present in
     // affectedRoutes. Returns false if the request isn't (fully) present.
     bool findRideTimeLink(int requestId, const std::vector<int>& affectedRoutes, RideTimeLink& outLink) const;
@@ -146,4 +179,7 @@ private:
     std::vector<Transfer> transfers_;
     std::vector<int> unassignedRequests_;
     int objectiveFunction_ = 0;
+    // One entry per route, shared by all the routes of a set (and by every
+    // copy of this Solution until one of them changes).
+    std::vector<std::shared_ptr<const LinkedRoutesTiming>> timing_;
 };

@@ -1,141 +1,209 @@
 #include "InsertionEvaluator.h"
 
 #include <algorithm>
-#include <iostream>
+
+namespace {
+// Earliest time of `node` once the shifts of `upstream` (another leg of the
+// same request, possibly in another set of linked routes) have propagated.
+int shiftedEarliest(const LinkedRoutesTiming& timing, int node, const InsertionEvaluator::LegEstimate* upstream) {
+    int h = timing.earliest(node);
+    if (upstream == nullptr || upstream->timing != &timing) return h;
+    for (int k = 0; k < upstream->nbShifts; ++k) {
+        int st = timing.slackTime(upstream->shifts[k].node, node);
+        if (st != LinkedRoutesTiming::kUnreachable) h = std::max(h, timing.earliest(node) + upstream->shifts[k].delta - st);
+    }
+    return h;
+}
+}  // namespace
+
+bool InsertionEvaluator::admitsFirstAlone(const Solution& solution, int routeIndex, int posFirst,
+                                          const RouteStop& first) const {
+    const LinkedRoutesTiming& tm = solution.timing(routeIndex);
+    const TravelTimeProvider& tt = solution.instance().travelTimes();
+    int i = tm.node(routeIndex, posFirst - 1);
+    int afterI = tm.node(routeIndex, posFirst);
+    int hFirst = std::max(first.windowLtw, tm.earliest(i) + tm.serviceTime(i) + tt.driveTime(tm.pointId(i), first.pointId));
+    if (hFirst > first.windowUtw) return false;
+    int delta = hFirst + first.serviceTime + tt.driveTime(first.pointId, tm.pointId(afterI)) - tm.earliest(afterI);
+    return delta <= tm.forwardSlack(afterI);
+}
+
+InsertionEvaluator::LegEstimate InsertionEvaluator::estimateLeg(const Solution& solution, int routeIndex, int posFirst,
+                                                                int posSecond, const RouteStop& first,
+                                                                const RouteStop& second, int maxRideTime,
+                                                                const LegEstimate* upstream, int firstMinTime) const {
+    LegEstimate est;
+    const LinkedRoutesTiming& tm = solution.timing(routeIndex);
+    const TravelTimeProvider& tt = solution.instance().travelTimes();
+    est.timing = &tm;
+
+    // First stop, after node i (Algorithm 1, lines 1-3).
+    int i = tm.node(routeIndex, posFirst - 1);
+    int afterI = tm.node(routeIndex, posFirst);
+    int hFirst = std::max({first.windowLtw, firstMinTime,
+                           shiftedEarliest(tm, i, upstream) + tm.serviceTime(i) + tt.driveTime(tm.pointId(i), first.pointId)});
+    if (hFirst > first.windowUtw) return est;
+
+    int hSecond = 0, latestFirst = 0, latestSecond = 0;
+    if (posSecond == posFirst) {
+        // Second stop right after the first: a single shift, at i's old successor.
+        hSecond = std::max(second.windowLtw, hFirst + first.serviceTime + tt.driveTime(first.pointId, second.pointId));
+        if (hSecond > second.windowUtw) return est;
+        int delta = std::max(0, hSecond + second.serviceTime + tt.driveTime(second.pointId, tm.pointId(afterI)) -
+                                    tm.earliest(afterI));
+        if (delta > tm.forwardSlack(afterI)) return est;
+        est.shifts[0] = {afterI, delta};
+        est.nbShifts = 1;
+        latestSecond = std::min(second.windowUtw, tm.latest(afterI) - second.serviceTime -
+                                                      tt.driveTime(second.pointId, tm.pointId(afterI)));
+        latestFirst = std::min(first.windowUtw,
+                               latestSecond - first.serviceTime - tt.driveTime(first.pointId, second.pointId));
+    } else {
+        // Shift at i's old successor (Algorithm 1, lines 4-6)...
+        int deltaFirst = std::max(0, hFirst + first.serviceTime + tt.driveTime(first.pointId, tm.pointId(afterI)) -
+                                         tm.earliest(afterI));
+        if (deltaFirst > tm.forwardSlack(afterI)) return est;
+        latestFirst = std::min(first.windowUtw, tm.latest(afterI) - first.serviceTime -
+                                                    tt.driveTime(first.pointId, tm.pointId(afterI)));
+
+        // ...propagated to j (Algorithm 2, line 4), then the second stop after j.
+        int j = tm.node(routeIndex, posSecond - 1);
+        int afterJ = tm.node(routeIndex, posSecond);
+        int hJ = std::max(shiftedEarliest(tm, j, upstream), tm.earliest(j) + deltaFirst - tm.slackTime(afterI, j));
+        hSecond = std::max(second.windowLtw, hJ + tm.serviceTime(j) + tt.driveTime(tm.pointId(j), second.pointId));
+        if (hSecond > second.windowUtw) return est;
+        int deltaSecond = std::max(0, hSecond + second.serviceTime + tt.driveTime(second.pointId, tm.pointId(afterJ)) -
+                                          tm.earliest(afterJ));
+        if (deltaSecond > tm.forwardSlack(afterJ)) return est;
+        latestSecond = std::min(second.windowUtw, tm.latest(afterJ) - second.serviceTime -
+                                                      tt.driveTime(second.pointId, tm.pointId(afterJ)));
+        est.shifts[0] = {afterI, deltaFirst};
+        est.shifts[1] = {afterJ, deltaSecond};
+        est.nbShifts = 2;
+    }
+
+    // Earliest above latest: no schedule. Then the ride time between the two
+    // stops is at least (earliest second) - (latest first).
+    if (latestFirst < hFirst || latestSecond < hSecond) return est;
+    if (hSecond - latestFirst > maxRideTime) return est;
+
+    est.admitted = true;
+    est.firstTime = hFirst;
+    est.secondTime = hSecond;
+    est.firstLatest = latestFirst;
+    return est;
+}
+
+bool InsertionEvaluator::admitsTransfer(const Solution& solution, const InsertionResult& leg1, const RouteStop& pickup,
+                                        const RouteStop& stopBefore, const InsertionResult& leg2,
+                                        const RouteStop& stopAfter, const RouteStop& delivery, int ptTravelTime,
+                                        int maxRideTime) const {
+    // Pickup, then stopBefore (Algorithm 3, lines 1-7).
+    LegEstimate legBefore = estimateLeg(solution, leg1.routeIndex, leg1.posPickup, leg1.posDelivery, pickup,
+                                        stopBefore, kNoRideTimeLimit);
+    if (!legBefore.admitted) return false;
+
+    // Proposition 4: a cycle appears iff the node stopBefore follows (j) is a
+    // successor of the node stopAfter precedes (sigma(i')). Only possible
+    // within one set of linked routes.
+    const LinkedRoutesTiming& timingAfter = solution.timing(leg2.routeIndex);
+    if (legBefore.timing == &timingAfter) {
+        int j = timingAfter.node(leg1.routeIndex, leg1.posDelivery - 1);
+        int afterIPrime = timingAfter.node(leg2.routeIndex, leg2.posPickup);
+        if (timingAfter.reaches(afterIPrime, j)) return false;
+    }
+
+    // stopAfter, no earlier than the request coming out of PT, then delivery
+    // (lines 8-20), with the shifts of the first leg propagated to this route.
+    LegEstimate legAfter = estimateLeg(solution, leg2.routeIndex, leg2.posPickup, leg2.posDelivery, stopAfter,
+                                       delivery, kNoRideTimeLimit, &legBefore,
+                                       legBefore.secondTime + stopBefore.serviceTime + ptTravelTime);
+    if (!legAfter.admitted) return false;
+    return legAfter.secondTime - legBefore.firstLatest <= maxRideTime;
+}
 
 std::vector<InsertionEvaluator::InsertionResult> InsertionEvaluator::generateCandidates(
-    const Solution& solution, int routeIndex, const RouteStop& pickupTemplate,
-    const RouteStop& deliveryTemplate) const {
+    const Solution& solution, int routeIndex, const RouteStop& pickupTemplate, const RouteStop& deliveryTemplate,
+    int maxRideTime) const {
     const Route& route = solution.route(routeIndex);
     const TravelTimeProvider& tt = solution.instance().travelTimes();
     int n = route.size();
 
-    // PDP preprocessing (Masson, Lehuédé, Péton), local to this route only --
-    // valid as a pre-filter regardless of pattern, but only exact/complete
-    // when this route has no active Transfer (ignores ride-time-max and any
-    // cross-route arc on purpose). A copy: recomputePdpWindows/ForwardTimeSlack
-    // mutate ltwPdp/utwPdp/forwardTimeSlackPdp, and `route` here is a
-    // reference into `solution`, which this function must not mutate.
-    Route routeWithPdp = route;
-    routeWithPdp.recomputePdpWindows(tt);
-    routeWithPdp.recomputeForwardTimeSlack(tt);
-
     std::vector<InsertionResult> candidates;
-    candidates.reserve(static_cast<size_t>(n + 1) * (n + 2) / 2);
-
     for (int posPickup = 0; posPickup <= n; ++posPickup) {
         int beforeP = route.pointBefore(posPickup);
         int afterP = route.pointAfter(posPickup);
 
-        bool pickupAdmitted = routeWithPdp.pdpAdmitsInsertion(
-            tt, posPickup, pickupTemplate.pointId, pickupTemplate.serviceTime, pickupTemplate.windowLtw,
-            pickupTemplate.windowUtw);
-        /*if (pickupAdmitted) {
-            std::cout << "Pickup can be inserted after " << beforeP << "\n";  // A SUPPRIMER
-        } else {
-            std::cout << "Pickup cannot be inserted after " << beforeP << " (PDP filter)\n";  // A SUPPRIMER
-            continue;  // rules out this posPickup entirely, adjacent case included
-        }*/
-        if (!pickupAdmitted) {
-            continue;  // rules out this posPickup entirely, adjacent case included
+        // Delivery immediately after pickup: 3-leg formula, replacing (beforeP,afterP) directly.
+        if (estimateLeg(solution, routeIndex, posPickup, posPickup, pickupTemplate, deliveryTemplate, maxRideTime)
+                .admitted) {
+            int adjacentCost = tt.driveTime(beforeP, pickupTemplate.pointId) +
+                               tt.driveTime(pickupTemplate.pointId, deliveryTemplate.pointId) +
+                               tt.driveTime(deliveryTemplate.pointId, afterP) - tt.driveTime(beforeP, afterP);
+            candidates.push_back({routeIndex, posPickup, posPickup, adjacentCost});
         }
 
+        // Delivery at a later gap: independent insertion costs, using the
+        // original route's neighbors (unaffected by pickup's insertion).
+        if (!admitsFirstAlone(solution, routeIndex, posPickup, pickupTemplate)) continue;
         int costPickupAlone = tt.driveTime(beforeP, pickupTemplate.pointId) +
-                               tt.driveTime(pickupTemplate.pointId, afterP) - tt.driveTime(beforeP, afterP);
-
-        // Delivery immediately after pickup: 3-leg formula, replacing (beforeP,afterP) directly.
-        int adjacentCost = tt.driveTime(beforeP, pickupTemplate.pointId) +
-                            tt.driveTime(pickupTemplate.pointId, deliveryTemplate.pointId) +
-                            tt.driveTime(deliveryTemplate.pointId, afterP) - tt.driveTime(beforeP, afterP);
-        candidates.push_back({routeIndex, posPickup, posPickup, adjacentCost});
-
-        // Delivery at a later gap: independent insertion cost, using the
-        // original route's neighbors (unaffected by pickup's insertion). The
-        // PDP filter is applied against the ORIGINAL route (pickup absent) --
-        // still a valid necessary condition, since inserting pickup can only
-        // ever add delay, never remove it (see the discussion on why).
+                              tt.driveTime(pickupTemplate.pointId, afterP) - tt.driveTime(beforeP, afterP);
         for (int posDelivery = posPickup + 1; posDelivery <= n; ++posDelivery) {
+            if (!estimateLeg(solution, routeIndex, posPickup, posDelivery, pickupTemplate, deliveryTemplate,
+                             maxRideTime)
+                     .admitted)
+                continue;
             int beforeD = route.pointBefore(posDelivery);
             int afterD = route.pointAfter(posDelivery);
-
-            bool deliveryAdmitted = routeWithPdp.pdpAdmitsInsertion(
-                tt, posDelivery, deliveryTemplate.pointId, deliveryTemplate.serviceTime, deliveryTemplate.windowLtw,
-                deliveryTemplate.windowUtw);
-            /*if (deliveryAdmitted) {
-                std::cout << "Delivery can be inserted after " << beforeD << "\n";  // A SUPPRIMER
-            } else {
-                std::cout << "Delivery cannot be inserted after " << beforeD << " (PDP filter)\n";  // A SUPPRIMER
-                continue;
-            }*/
-           if (!deliveryAdmitted) {
-                continue;
-            }
-
             int costDeliveryAlone = tt.driveTime(beforeD, deliveryTemplate.pointId) +
-                                     tt.driveTime(deliveryTemplate.pointId, afterD) - tt.driveTime(beforeD, afterD);
+                                    tt.driveTime(deliveryTemplate.pointId, afterD) - tt.driveTime(beforeD, afterD);
             candidates.push_back({routeIndex, posPickup, posDelivery, costPickupAlone + costDeliveryAlone});
         }
     }
-
     return candidates;
 }
 
 std::vector<InsertionEvaluator::FrontCandidate> InsertionEvaluator::generateFrontCandidates(
     const Solution& solution, int routeIndex, const RouteStop& pickupTemplate, const RouteStop& secondTemplate,
-    bool useDropoffMetric) const {
+    bool useDropoffMetric, int maxRideTime) const {
     const Route& route = solution.route(routeIndex);
     const TravelTimeProvider& tt = solution.instance().travelTimes();
     int n = route.size();
 
-    Route routeWithPdp = route;
-    routeWithPdp.recomputePdpWindows(tt);
-    routeWithPdp.recomputeForwardTimeSlack(tt);
-
     ParetoFront2D<InsertionResult> front;
+    auto metricOf = [useDropoffMetric](const LegEstimate& est) {
+        if (useDropoffMetric) return est.secondTime;
+        int shift = 0;
+        for (int k = 0; k < est.nbShifts; ++k) shift = std::max(shift, est.shifts[k].delta);
+        return shift;
+    };
 
     for (int posPickup = 0; posPickup <= n; ++posPickup) {
         int beforeP = route.pointBefore(posPickup);
         int afterP = route.pointAfter(posPickup);
 
-        // Adjacent case: second stop goes right after pickup, no route stop
-        // in between -- needs the chained 2-stop PDP check, not two
-        // independent single-stop ones (see Route::pdpAdmitsAdjacentInsertion).
-        int adjacentArrival = 0, adjacentDelta = 0;
-        bool adjacentAdmitted = routeWithPdp.pdpAdmitsAdjacentInsertion(
-            tt, posPickup, pickupTemplate.pointId, pickupTemplate.serviceTime, pickupTemplate.windowLtw,
-            pickupTemplate.windowUtw, secondTemplate.pointId, secondTemplate.serviceTime, secondTemplate.windowLtw,
-            secondTemplate.windowUtw, &adjacentArrival, &adjacentDelta);
-        if (adjacentAdmitted) {
+        LegEstimate adjacent =
+            estimateLeg(solution, routeIndex, posPickup, posPickup, pickupTemplate, secondTemplate, maxRideTime);
+        if (adjacent.admitted) {
             int cost = tt.driveTime(beforeP, pickupTemplate.pointId) +
                        tt.driveTime(pickupTemplate.pointId, secondTemplate.pointId) +
                        tt.driveTime(secondTemplate.pointId, afterP) - tt.driveTime(beforeP, afterP);
-            int metric = useDropoffMetric ? adjacentArrival : adjacentDelta;
-            front.add({routeIndex, posPickup, posPickup, cost}, cost, metric);
+            front.add({routeIndex, posPickup, posPickup, cost}, cost, metricOf(adjacent));
         }
 
-        // Non-adjacent: pickup and the second stop at two independent gaps.
-        int pickupDelta = 0;
-        bool pickupAdmitted = routeWithPdp.pdpAdmitsInsertion(tt, posPickup, pickupTemplate.pointId,
-                                                                pickupTemplate.serviceTime, pickupTemplate.windowLtw,
-                                                                pickupTemplate.windowUtw, nullptr, &pickupDelta);
-        if (!pickupAdmitted) continue;
+        if (!admitsFirstAlone(solution, routeIndex, posPickup, pickupTemplate)) continue;
         int costPickupAlone = tt.driveTime(beforeP, pickupTemplate.pointId) +
-                               tt.driveTime(pickupTemplate.pointId, afterP) - tt.driveTime(beforeP, afterP);
-
+                              tt.driveTime(pickupTemplate.pointId, afterP) - tt.driveTime(beforeP, afterP);
         for (int posSecond = posPickup + 1; posSecond <= n; ++posSecond) {
+            LegEstimate est =
+                estimateLeg(solution, routeIndex, posPickup, posSecond, pickupTemplate, secondTemplate, maxRideTime);
+            if (!est.admitted) continue;
             int beforeS = route.pointBefore(posSecond);
             int afterS = route.pointAfter(posSecond);
-            int secondArrival = 0, secondDelta = 0;
-            bool secondAdmitted = routeWithPdp.pdpAdmitsInsertion(
-                tt, posSecond, secondTemplate.pointId, secondTemplate.serviceTime, secondTemplate.windowLtw,
-                secondTemplate.windowUtw, &secondArrival, &secondDelta);
-            if (!secondAdmitted) continue;
-
             int costSecondAlone = tt.driveTime(beforeS, secondTemplate.pointId) +
-                                   tt.driveTime(secondTemplate.pointId, afterS) - tt.driveTime(beforeS, afterS);
+                                  tt.driveTime(secondTemplate.pointId, afterS) - tt.driveTime(beforeS, afterS);
             int cost = costPickupAlone + costSecondAlone;
-            int metric = useDropoffMetric ? secondArrival : std::max(pickupDelta, secondDelta);
-            front.add({routeIndex, posPickup, posSecond, cost}, cost, metric);
+            front.add({routeIndex, posPickup, posSecond, cost}, cost, metricOf(est));
         }
     }
 
@@ -168,21 +236,4 @@ bool InsertionEvaluator::verify(const Solution& solution, const InsertionResult&
 
     std::vector<int> affected = trial.dependentRoutes(candidate.routeIndex);
     return trial.propagateForwardDarp(affected, overrides);
-}
-
-std::vector<InsertionEvaluator::InsertionResult> InsertionEvaluator::findInsertions(
-    const Solution& solution, int routeIndex, const RouteStop& pickupTemplate,
-    const RouteStop& deliveryTemplate, int maxResults, const int* overrideMaxRideTime) const {
-    std::vector<InsertionResult> candidates =
-        generateCandidates(solution, routeIndex, pickupTemplate, deliveryTemplate);
-    std::sort(candidates.begin(), candidates.end(),
-              [](const InsertionResult& a, const InsertionResult& b) { return a.cost < b.cost; });
-
-    std::vector<InsertionResult> results;
-    for (const InsertionResult& c : candidates) {
-        if (!verify(solution, c, pickupTemplate, deliveryTemplate, overrideMaxRideTime)) continue;
-        results.push_back(c);
-        if (static_cast<int>(results.size()) >= maxResults) break;
-    }
-    return results;
 }

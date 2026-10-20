@@ -13,9 +13,10 @@ public:
     virtual ~Destroyer() = default;
 
     // May remove fewer than nbToRemove if the solution doesn't have that many
-    // assigned requests. Leaves the solution's DARP windows refreshed for
-    // every route it touched (removing stops can only relax constraints, so
-    // this can never make a previously feasible route infeasible).
+    // assigned requests. Leaves the solution's timing data refreshed
+    // (Solution::refreshTiming) for every route it touched (removing stops
+    // can only relax constraints, so this can never make a previously
+    // feasible route infeasible).
     virtual void apply(Solution& solution, int nbToRemove) = 0;
 
     virtual std::string name() const = 0;

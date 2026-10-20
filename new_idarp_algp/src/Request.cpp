@@ -72,7 +72,8 @@ void Request::print() const {
             std::cout << "   The largest time window is [" << w.lowerBound << ";" << w.upperBound << "]\n";
             for (auto s : walkAccess_.complementaryStops()) {
                 auto sw = walkAccess_.windowForStop(s);
-                std::cout << "      " << s << ": [" << sw.lowerBound << ";" << sw.upperBound << "]\n";
+                std::cout << "      " << s << ": [" << sw.lowerBound << ";" << sw.upperBound
+                          << "], vehicle leg max ride time " << walkAccess_.maxRideTimeForStop(s) << "\n";
             }
             break;
         }

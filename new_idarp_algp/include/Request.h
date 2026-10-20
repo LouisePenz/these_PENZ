@@ -45,6 +45,12 @@ enum class WalkSide { None, AtPickup, AtDelivery };
 
 // Candidate PT stops for the "walk -> PT -> vehicle" / "vehicle -> PT -> walk" patterns:
 // one nearest stop reachable on foot, and a few candidate stops on the other side.
+//
+// Since the walk and the PT ride have constant durations, the walk + PT part
+// is folded into derived data for each candidate stop: the time window of the
+// vehicle's stop there, and the maximum ride time of the vehicle leg alone
+// (pickup -> stop, or stop -> delivery). Any schedule respecting both is
+// feasible for the whole trip -- see Instance::computeWalkData.
 class WalkAccess {
 public:
     bool available() const noexcept { return side_ != WalkSide::None; }
@@ -54,6 +60,7 @@ public:
     int walkTime() const noexcept { return walkTime_; }
     const std::vector<int>& complementaryStops() const noexcept { return complementaryStops_; }
     TimeWindow windowForStop(int stopId) const { return windows_.at(stopId); }
+    int maxRideTimeForStop(int stopId) const { return maxRideTimes_.at(stopId); }
     TimeWindow aggregateWindow() const noexcept { return aggregateWindow_; }
 
     void setSide(WalkSide side) noexcept { side_ = side; }
@@ -61,6 +68,7 @@ public:
     void setWalkTime(int t) noexcept { walkTime_ = t; }
     void setComplementaryStops(std::vector<int> stops) { complementaryStops_ = std::move(stops); }
     void setWindowForStop(int stopId, TimeWindow w) { windows_[stopId] = w; }
+    void setMaxRideTimeForStop(int stopId, int maxRideTime) { maxRideTimes_[stopId] = maxRideTime; }
     void setAggregateWindow(TimeWindow w) noexcept { aggregateWindow_ = w; }
 
 private:
@@ -69,6 +77,7 @@ private:
     int walkTime_ = 0;
     std::vector<int> complementaryStops_;
     std::unordered_map<int, TimeWindow> windows_;
+    std::unordered_map<int, int> maxRideTimes_;
     TimeWindow aggregateWindow_;
 };
 

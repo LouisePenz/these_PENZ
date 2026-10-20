@@ -6,6 +6,8 @@
 #include <unordered_set>
 #include <numeric>
 
+#include "LinkedRoutesTiming.h"
+
 namespace {
 const char* roleName(StopRole role) {
     switch (role) {
@@ -20,6 +22,7 @@ const char* roleName(StopRole role) {
 
 
 const Solution::NodeRef Solution::kArtificialDepot{-1, -1};
+const int Solution::kRouteEndPosition = -2;
 
 Solution::Solution(const Instance& instance) : instance_(&instance) {
     routes_.reserve(instance.nbVehicles());
@@ -29,6 +32,34 @@ Solution::Solution(const Instance& instance) : instance_(&instance) {
     }
     unassignedRequests_.reserve(instance.nbRequests());
     for (int r = 0; r < instance.nbRequests(); ++r) unassignedRequests_.push_back(r);
+
+    timing_.resize(routes_.size());
+    std::vector<int> allRoutes(nbRoutes());
+    std::iota(allRoutes.begin(), allRoutes.end(), 0);
+    refreshTiming(allRoutes);
+}
+
+const LinkedRoutesTiming& Solution::timing(int route) const { return *timing_[route]; }
+
+bool Solution::refreshTiming(const std::vector<int>& changedRoutes) {
+    bool feasible = true;
+    std::vector<bool> done(routes_.size(), false);
+    for (int changed : changedRoutes) {
+        if (done[changed]) continue;
+        std::vector<int> linked = dependentRoutes(changed);
+        std::sort(linked.begin(), linked.end());
+        for (int r : linked) {
+            done[r] = true;
+            routes_[r].recomputeLoad();
+        }
+        if (!propagateForwardDarp(linked) || !propagateBackwardDarp(linked)) {
+            std::cerr << "[refreshTiming] a set of linked routes has no feasible schedule\n";
+            feasible = false;
+        }
+        auto timing = std::make_shared<const LinkedRoutesTiming>(*this, linked);
+        for (int r : linked) timing_[r] = timing;
+    }
+    return feasible;
 }
 
 void Solution::removeTransfer(int requestId) {
@@ -100,33 +131,37 @@ bool Solution::findRideTimeLink(int requestId, const std::vector<int>& affectedR
         outLink = {pickupNode, deliveryNode, instance_->request(requestId).maxRideTime()};
         return true;
     }
-    if (hasStop && hasDelivery && stopRole == StopRole::StopAfter &&
-        instance_->request(requestId).walkAccess().available()) {
-        outLink = {stopNode, deliveryNode, instance_->maxRideTimeLegWithWalk(requestId)};
+    // Walk patterns: the walk must be on the right side and the stop one of its
+    // candidates -- otherwise this is e.g. one leg of a 2-vehicle request.
+    const WalkAccess& walk = instance_->request(requestId).walkAccess();
+    auto isWalkStop = [&walk, this](NodeRef node) {
+        const std::vector<int>& stops = walk.complementaryStops();
+        return std::find(stops.begin(), stops.end(), stopAtNode(node).pointId) != stops.end();
+    };
+    if (hasStop && hasDelivery && !hasPickup && stopRole == StopRole::StopAfter &&
+        walk.side() == WalkSide::AtPickup && isWalkStop(stopNode)) {
+        outLink = {stopNode, deliveryNode, instance_->maxRideTimeLegWithWalk(requestId, stopAtNode(stopNode).pointId)};
         return true;
     }
-    if (hasPickup && hasStop && stopRole == StopRole::StopBefore &&
-        instance_->request(requestId).walkAccess().available()) {
-        outLink = {pickupNode, stopNode, instance_->maxRideTimeLegWithWalk(requestId)};
+    if (hasPickup && hasStop && !hasDelivery && stopRole == StopRole::StopBefore &&
+        walk.side() == WalkSide::AtDelivery && isWalkStop(stopNode)) {
+        outLink = {pickupNode, stopNode, instance_->maxRideTimeLegWithWalk(requestId, stopAtNode(stopNode).pointId)};
         return true;
     }
     return false;
 }
 
-bool Solution::propagateForwardDarp(const std::vector<int>& affectedRoutes,
-                                     const std::vector<std::pair<int, RideTimeLink>>& overrides) {
+bool Solution::buildDarpArcs(const std::vector<int>& affectedRoutes,
+                             const std::vector<std::pair<int, RideTimeLink>>& overrides,
+                             std::vector<Arc>& arcs) const {
     const int H = instance_->horizonTime();
-    std::vector<Arc> arcs;
-    std::unordered_map<NodeRef, int, NodeRefHash> value;
-    value[kArtificialDepot] = H;
-
+    arcs.clear();
     std::unordered_set<int> requestsSeen;
 
     // Route chain arcs: value(succ) >= value(pred) + driveTime + serviceTime(pred).
     for (int r : affectedRoutes) {
         const Route& route = routes_[r];
         NodeRef depotNode{r, -1};
-        value[depotNode] = 0;
 
         NodeRef prev = depotNode;
         int prevPointId = route.depotPointId();
@@ -139,6 +174,15 @@ bool Solution::propagateForwardDarp(const std::vector<int>& affectedRoutes,
             prevPointId = s.pointId;
             prevServiceTime = s.serviceTime;
             requestsSeen.insert(s.requestId);
+        }
+
+        // Return to the depot: value(end) >= value(last) + serviceTime(last) +
+        // driveTime(last, depot), and value(end) <= the route's return deadline.
+        if (!route.empty()) {
+            NodeRef endNode{r, kRouteEndPosition};
+            arcs.push_back({endNode, prev, -instance_->travelTimes().driveTime(prevPointId, route.depotPointId()) -
+                                               prevServiceTime});
+            arcs.push_back({kArtificialDepot, endNode, route.depotReturnDeadline() - H});
         }
     }
 
@@ -165,7 +209,12 @@ bool Solution::propagateForwardDarp(const std::vector<int>& affectedRoutes,
         if (overrideIt != overrides.end()) {
             link = overrideIt->second;
         } else if (!findRideTimeLink(reqId, affectedRoutes, link)) {
-            continue;
+            // Skipping it would silently drop every time constraint of this
+            // request -- always a bug upstream (e.g. one leg of a 2-vehicle
+            // request tested without an override), never a legitimate state.
+            std::cerr << "[buildDarpArcs] request " << reqId
+                      << " is in a route but matches no known pattern -- treated as infeasible\n";
+            return false;
         }
 
         const RouteStop& nearStop = stopAtNode(link.nearNode);
@@ -177,15 +226,31 @@ bool Solution::propagateForwardDarp(const std::vector<int>& affectedRoutes,
         arcs.push_back({link.farNode, kArtificialDepot, H - farStop.windowLtw});
         arcs.push_back({link.nearNode, link.farNode, link.maxRideTime});
     }
+    return true;
+}
 
-    // Bellman-Ford relaxation, bounded by the number of distinct nodes actually
-    // involved in this call (not the whole solution -- see the discussion).
+bool Solution::propagateForwardDarp(const std::vector<int>& affectedRoutes,
+                                     const std::vector<std::pair<int, RideTimeLink>>& overrides) {
+    const int H = instance_->horizonTime();
+    std::vector<Arc> arcs;
+    if (!buildDarpArcs(affectedRoutes, overrides, arcs)) return false;
+
+    // Earliest schedule: every node starts as low as possible (artificial
+    // depot at H, route depots at 0, every stop at 0) and is pushed up.
+    std::unordered_map<NodeRef, int, NodeRefHash> value;
+    value[kArtificialDepot] = H;
+    for (int r : affectedRoutes) value[NodeRef{r, -1}] = 0;
+
+    // Bellman-Ford relaxation over the distinct nodes actually involved in this
+    // call (not the whole solution). Values are final after |V| - 1 passes if
+    // there is no positive cycle; one more pass is needed to see that nothing
+    // changes anymore, hence |V| passes before declaring a cycle.
     std::unordered_set<NodeRef, NodeRefHash> nodes;
     for (const Arc& a : arcs) {
         nodes.insert(a.from);
         nodes.insert(a.to);
     }
-    int bound = std::max(1, static_cast<int>(nodes.size()) - 1);
+    int bound = std::max(1, static_cast<int>(nodes.size()));
 
     bool converged = false;
     for (int iteration = 0; iteration < bound && !converged; ++iteration) {
@@ -217,6 +282,57 @@ bool Solution::propagateForwardDarp(){
     std::vector<int> allRoutes(nbRoutes());
     std::iota(allRoutes.begin(), allRoutes.end(), 0);
     return this->propagateForwardDarp(allRoutes);
+}
+
+bool Solution::propagateBackwardDarp(const std::vector<int>& affectedRoutes) {
+    const int H = instance_->horizonTime();
+    std::vector<Arc> arcs;
+    if (!buildDarpArcs(affectedRoutes, {}, arcs)) return false;
+
+    // Latest schedule: the mirror of propagateForwardDarp -- every stop starts
+    // as high as possible (H) and is pulled down: value(to) <= value(from) +
+    // weight. The artificial depot (H) and the route depots (departure at 0)
+    // are fixed: having to pull one of them down means no schedule exists.
+    std::unordered_set<NodeRef, NodeRefHash> nodes;
+    for (const Arc& a : arcs) {
+        nodes.insert(a.from);
+        nodes.insert(a.to);
+    }
+    std::unordered_map<NodeRef, int, NodeRefHash> value;
+    for (const NodeRef& n : nodes) value[n] = H;
+    for (int r : affectedRoutes) value[NodeRef{r, -1}] = 0;
+    auto isFixed = [](const NodeRef& n) { return n == kArtificialDepot || n.second == -1; };
+
+    int bound = std::max(1, static_cast<int>(nodes.size()));
+    bool converged = false;
+    for (int iteration = 0; iteration < bound && !converged; ++iteration) {
+        converged = true;
+        for (const Arc& a : arcs) {
+            int fromValue = value[a.from];
+            if (value[a.to] > fromValue + a.weight) {
+                int newValue = fromValue + a.weight;
+                if (isFixed(a.to) || newValue < 0) return false;
+                value[a.to] = newValue;
+                converged = false;
+            }
+        }
+    }
+    if (!converged) return false;
+
+    for (int r : affectedRoutes) {
+        Route& route = routes_[r];
+        for (int i = 0; i < route.size(); ++i) {
+            auto it = value.find(NodeRef{r, i});
+            if (it != value.end()) route.stopAt(i).utwDarp = it->second;
+        }
+    }
+    return true;
+}
+
+bool Solution::propagateBackwardDarp() {
+    std::vector<int> allRoutes(nbRoutes());
+    std::iota(allRoutes.begin(), allRoutes.end(), 0);
+    return propagateBackwardDarp(allRoutes);
 }
 
 void Solution::print() const {

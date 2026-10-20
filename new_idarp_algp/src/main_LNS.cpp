@@ -17,6 +17,7 @@
 #include "RegretRepair.h"
 #include "Repairer.h"
 #include "Solution.h"
+#include "SolutionChecker.h"
 #include <Clock.h>
 
 namespace {
@@ -29,8 +30,9 @@ void printHelp() {
     std::cout << "  -d \"file of the drive time\"                               | Mandatory |\n";
     std::cout << "  -pt \"file of the public transport time\"                   | Mandatory |\n";
     std::cout << "  -w \"file of the walk time\"                                | Mandatory |\n";
+    std::cout << "  -v \"file with the minimum number of vehicles\"             | Mandatory | (main_nb_vehicles -res); uses it + 1\n";
     std::cout << "  -f \"folder of instance/drive time/ public transport time\" | Optional  | Default \"./\"\n";
-    std::cout << "  -v \"number of vehicles\"                                   | Optional  | Default nbRequests-1\n";
+    std::cout << "  -s \"random seed\"                                          | Optional  | Default current time\n";
     std::cout << "\nNot yet supported by this rewrite (see comments in main_LNS.cpp):\n";
     std::cout << "  -sn / -sinit / -slns / -history\n";
 }
@@ -53,7 +55,7 @@ const char* getOptionValue(int argc, char* argv[], const std::string& flag) {
 }
 
 bool hasAllMandatoryOptions(int argc, char* argv[]) {
-    const char* mandatory[] = {"-p", "-w", "-d", "-pt", "-c", "-ci"};
+    const char* mandatory[] = {"-p", "-w", "-d", "-pt", "-c", "-ci", "-v"};
     for (const char* flag : mandatory) {
         if (getOptionValue(argc, argv, flag) == nullptr) return false;
     }
@@ -117,19 +119,19 @@ int main(int argc, char* argv[]) {
     instance.configurePublicTransport(conf.waitingTime(), conf.minimumTimeInTransit());
     instance.configureWalk(conf.walkThreshold());
     instance.precomputeAccessOptions();
-    instance.setNbVehicles(instance.nbRequests());
+    // -v: file holding the minimum number of vehicles found by main_nb_vehicles;
+    // one more vehicle is used here so that a complete solution is found quickly.
+    int minNbVehicles = 0;
+    std::ifstream vehiclesFile(getOptionValue(argc, argv, "-v"));
+    if (!(vehiclesFile >> minNbVehicles) || minNbVehicles <= 0) {
+        std::cerr << "Cannot read a positive number of vehicles from " << getOptionValue(argc, argv, "-v") << "\n";
+        return 1;
+    }
+    instance.setNbVehicles(minNbVehicles + 1);
 
-    if (getOptionValue(argc, argv, "-v") != nullptr) {
-        int valeur;
-        std::ifstream(getOptionValue(argc, argv, "-v")) >> valeur;
-        instance.setNbVehicles(valeur+1);
-    } 
     // Stage 1: build an initial solution from empty routes, tolerating
-    // unassigned requests along the way. Uses conf.timeLimit() as its own
-    // budget too (separate from stage 2's, measured from its own start) --
-    // the old code used a distinct, much larger hardcoded budget (3600s) for
-    // this stage; if you want that split again, add a dedicated field to
-    // ConfLNS rather than reusing timeLimit() for both.
+    // unassigned requests along the way. Stages 1 and 2 share the same
+    // conf.timeLimit() budget, measured from here.
     //
     // NOTE: -sinit (loading a pre-built initial solution from file) isn't
     // wired in -- Solution has no file reader yet.
@@ -138,6 +140,19 @@ int main(int argc, char* argv[]) {
     Solution sInit = partialLns.compute(instance);
     std::cout << "Fin Sinit\n";
     sInit.computeObjectiveFunction();
+    std::cerr << "Initial solution:\n";
+    checkSolution(sInit, std::cerr);
+
+    // An incomplete initial solution means the whole time budget is already
+    // spent: no optimization, and a deliberately bad objective (worse than
+    // any complete solution) so that irace ranks this run last.
+    if (!sInit.unassignedRequests().empty()) {
+        std::cerr << "No complete initial solution within the time limit (" << sInit.unassignedRequests().size()
+                  << " unassigned request(s))\n";
+        std::ofstream objectiveFile("objective.txt");
+        objectiveFile << static_cast<long long>(instance.nbRequests()) * instance.horizonTime() << std::endl;
+        return 0;
+    }
     //std::cout << "Initial solution: " << sInit.unassignedRequests().size() << " unassigned request(s), objective "
     //          << sInit.objectiveFunction() << " (" << partialLns.lastIteration() << " iteration(s))\n";
 
@@ -146,6 +161,8 @@ int main(int argc, char* argv[]) {
     LNS lns(conf, makeDestroyers(), makeRepairers());
     Solution best = lns.compute(sInit, conf.timeLimit()-secondsSince(start));
     best.computeObjectiveFunction();
+    std::cerr << "Best solution:\n";
+    checkSolution(best, std::cerr);
     /*std::cout << "Best solution: " << best.unassignedRequests().size() << " unassigned request(s), objective "
               << best.objectiveFunction() << " (" << lns.lastIteration() << " iteration(s), last change at "
               << lns.lastChangeIteration() << ")\n";*/

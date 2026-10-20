@@ -66,12 +66,13 @@ std::vector<RequestInsertionCandidate> findTransferInsertionComplete(const Solut
         stopBefore.role = StopRole::StopBefore;
         stopBefore.requestId = requestId;
         stopBefore.pointId = entryStop;
+        stopBefore.serviceTime = req.loadingTime();
         stopBefore.loadDelta = -req.quantity();
         stopBefore.windowLtw = w.lowerBound;
         stopBefore.windowUtw = w.upperBound;
 
         for (int r = 0; r < solution.nbRoutes(); ++r) {
-            auto candidates = evaluator.generateCandidates(solution, r, pickup, stopBefore);
+            auto candidates = evaluator.generateCandidates(solution, r, pickup, stopBefore, maxRideTimeFirstLeg);
 
             for (const auto& c : candidates) {
                 if (!evaluator.verify(solution, c, pickup, stopBefore, &maxRideTimeFirstLeg)) continue;
@@ -110,20 +111,33 @@ std::vector<RequestInsertionCandidate> findTransferInsertionComplete(const Solut
         base.route(t1.result.routeIndex).recomputeLoad();
  
         for (int exitStop : req.ptAccess().stopsAfter()) {
+            // stopsBefore/stopsAfter are separate lists: not every combination is a valid pair.
+            if (!instance.isValidStopPair(requestId, t1.entryStop, exitStop)) continue;
             int ptTime = instance.travelTimes().publicTransportTime(t1.entryStop, exitStop);
+
+            // Committed stop: the pair's static window. PDP pre-filter of this
+            // search only: the tighter arrival given the first leg as it stands.
             RouteStop stopAfter;
             stopAfter.role = StopRole::StopAfter;
             stopAfter.requestId = requestId;
             stopAfter.pointId = exitStop;
+            stopAfter.serviceTime = req.loadingTime();
             stopAfter.loadDelta = req.quantity();
-            stopAfter.windowLtw = t1.achievedDropoff + ptTime;
-            stopAfter.windowUtw = instance.horizonTime();
- 
+            TimeWindow w = instance.stopAfterWindow(requestId, t1.entryStop, exitStop);
+            stopAfter.windowLtw = w.lowerBound;
+            stopAfter.windowUtw = w.upperBound;
+            RouteStop searchStopAfter = stopAfter;
+            searchStopAfter.windowLtw = std::max(w.lowerBound, t1.achievedDropoff + req.loadingTime() + ptTime);
+
             for (int r = 0; r < solution.nbRoutes(); ++r) {
                 if (r == t1.result.routeIndex) continue;  // never the same vehicle for both legs
-                auto candidates2 = evaluator.generateCandidates(solution, r, stopAfter, delivery);
+                auto candidates2 = evaluator.generateCandidates(solution, r, searchStopAfter, delivery,
+                                                                 instance.maxRideTimeLastLeg(requestId));
  
                 for (const auto& c2 : candidates2) {
+                    if (!evaluator.admitsTransfer(solution, t1.result, pickup, t1.stopBefore, c2, stopAfter, delivery,
+                                                  ptTime, req.maxRideTime()))
+                        continue;
                     // Test the whole request: first leg (in `base`) + this
                     // second leg + the real Transfer, true maxRideTime over
                     // the whole chain.

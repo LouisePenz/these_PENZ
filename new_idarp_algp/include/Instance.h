@@ -38,14 +38,25 @@ public:
     // True if request req can go pickup -> stopBefore -> [PT] -> stopAfter -> delivery
     // while respecting its maximum ride time.
     bool isStopPairFeasible(int req, int stopBefore, int stopAfter) const;
+    // The single criterion for a usable (stopBefore, stopAfter) pair, used both
+    // by the preprocessing and by the insertion search (the candidate lists
+    // stopsBefore/stopsAfter are kept separately, so not every combination of
+    // the two is a valid pair): ride-time feasible, PT ride at least the
+    // minimum time in transit, and access legs shorter than the direct trip.
+    bool isValidStopPair(int req, int stopBefore, int stopAfter) const;
+    // Static window of the stopAfter of a valid pair -- depends only on the
+    // instance, never on the current solution, so it stays valid in a route
+    // whatever happens to the first leg later on.
+    TimeWindow stopAfterWindow(int req, int stopBefore, int stopAfter) const;
 
     // In case of a "vehicle -> PT -> vehicle" transfer, the maximum ride time
     // allowed for the first leg (pickup -> stop before), resp. the last leg.
     int maxRideTimeFirstLeg(int req) const;
     int maxRideTimeLastLeg(int req) const;
     // In case of a transfer with a walking leg, the maximum ride time allowed
-    // for the vehicle leg opposite to the walk.
-    int maxRideTimeLegWithWalk(int req) const;
+    // for the vehicle leg opposite to the walk, when the vehicle serves PT stop
+    // stopId (one of walkAccess().complementaryStops()).
+    int maxRideTimeLegWithWalk(int req, int stopId) const;
 
     const std::vector<int>& relatedRequests(int req) const { return related_[req]; }
     const std::vector<int>& relatedRequestsWithTransfer(int req) const { return relatedWithTransfer_[req]; }

@@ -40,15 +40,7 @@ void RandomRemoval::apply(Solution& solution, int nbToRemove) {
 
     if (touchedRoutes.empty()) return;
 
-    std::sort(touchedRoutes.begin(), touchedRoutes.end());
-    touchedRoutes.erase(std::unique(touchedRoutes.begin(), touchedRoutes.end()), touchedRoutes.end());
-
-    std::vector<int> affected;
-    for (int r : touchedRoutes) {
-        for (int dep : solution.dependentRoutes(r)) affected.push_back(dep);
-    }
-    std::sort(affected.begin(), affected.end());
-    affected.erase(std::unique(affected.begin(), affected.end()), affected.end());
-
-    solution.propagateForwardDarp(affected);
+    // Removing stops only relaxes constraints, so this cannot fail; it also
+    // splits the sets of linked routes whose last transfer was removed.
+    solution.refreshTiming(touchedRoutes);
 }
