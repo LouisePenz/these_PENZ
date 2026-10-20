@@ -163,56 +163,6 @@ std::vector<InsertionEvaluator::InsertionResult> InsertionEvaluator::generateCan
     return candidates;
 }
 
-std::vector<InsertionEvaluator::FrontCandidate> InsertionEvaluator::generateFrontCandidates(
-    const Solution& solution, int routeIndex, const RouteStop& pickupTemplate, const RouteStop& secondTemplate,
-    bool useDropoffMetric, int maxRideTime) const {
-    const Route& route = solution.route(routeIndex);
-    const TravelTimeProvider& tt = solution.instance().travelTimes();
-    int n = route.size();
-
-    ParetoFront2D<InsertionResult> front;
-    auto metricOf = [useDropoffMetric](const LegEstimate& est) {
-        if (useDropoffMetric) return est.secondTime;
-        int shift = 0;
-        for (int k = 0; k < est.nbShifts; ++k) shift = std::max(shift, est.shifts[k].delta);
-        return shift;
-    };
-
-    for (int posPickup = 0; posPickup <= n; ++posPickup) {
-        int beforeP = route.pointBefore(posPickup);
-        int afterP = route.pointAfter(posPickup);
-
-        LegEstimate adjacent =
-            estimateLeg(solution, routeIndex, posPickup, posPickup, pickupTemplate, secondTemplate, maxRideTime);
-        if (adjacent.admitted) {
-            int cost = tt.driveTime(beforeP, pickupTemplate.pointId) +
-                       tt.driveTime(pickupTemplate.pointId, secondTemplate.pointId) +
-                       tt.driveTime(secondTemplate.pointId, afterP) - tt.driveTime(beforeP, afterP);
-            front.add({routeIndex, posPickup, posPickup, cost}, cost, metricOf(adjacent));
-        }
-
-        if (!admitsFirstAlone(solution, routeIndex, posPickup, pickupTemplate)) continue;
-        int costPickupAlone = tt.driveTime(beforeP, pickupTemplate.pointId) +
-                              tt.driveTime(pickupTemplate.pointId, afterP) - tt.driveTime(beforeP, afterP);
-        for (int posSecond = posPickup + 1; posSecond <= n; ++posSecond) {
-            LegEstimate est =
-                estimateLeg(solution, routeIndex, posPickup, posSecond, pickupTemplate, secondTemplate, maxRideTime);
-            if (!est.admitted) continue;
-            int beforeS = route.pointBefore(posSecond);
-            int afterS = route.pointAfter(posSecond);
-            int costSecondAlone = tt.driveTime(beforeS, secondTemplate.pointId) +
-                                  tt.driveTime(secondTemplate.pointId, afterS) - tt.driveTime(beforeS, afterS);
-            int cost = costPickupAlone + costSecondAlone;
-            front.add({routeIndex, posPickup, posSecond, cost}, cost, metricOf(est));
-        }
-    }
-
-    std::vector<FrontCandidate> result;
-    result.reserve(front.points().size());
-    for (const auto& p : front.points()) result.push_back({p.payload, p.secondary});
-    return result;
-}
-
 bool InsertionEvaluator::verify(const Solution& solution, const InsertionResult& candidate,
                                  const RouteStop& pickupTemplate, const RouteStop& deliveryTemplate,
                                  const int* overrideMaxRideTime) const {

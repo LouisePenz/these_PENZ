@@ -4,7 +4,6 @@
 #include <vector>
 
 #include "LinkedRoutesTiming.h"
-#include "ParetoFront.h"
 #include "Solution.h"
 
 // The elementary insertion machinery for one pair of stops (already fully
@@ -24,13 +23,6 @@ public:
         int posPickup;
         int posDelivery;
         int cost;
-    };
-
-    // A candidate on the (cost, secondary metric) Pareto front for one route
-    // -- see generateFrontCandidates.
-    struct FrontCandidate {
-        InsertionResult result;
-        int metric;
     };
 
     // For a leg whose two stops are not linked by a maximum ride time of their own.
@@ -75,21 +67,12 @@ public:
                                                       const RouteStop& pickupTemplate,
                                                       const RouteStop& deliveryTemplate, int maxRideTime) const;
 
-    // Same enumeration, but returns only the (cost, metric) Pareto front for
-    // this one route. `metric` is either the largest postponement imposed on
-    // the route's existing stops (useDropoffMetric = false), or the estimated
-    // earliest service time of the second stop (useDropoffMetric = true).
-    std::vector<FrontCandidate> generateFrontCandidates(const Solution& solution, int routeIndex,
-                                                          const RouteStop& pickupTemplate,
-                                                          const RouteStop& secondTemplate, bool useDropoffMetric,
-                                                          int maxRideTime) const;
-
     // The expensive exact check for exactly one candidate returned by
     // generateCandidates (for the same route and templates). Copies
     // `solution`, applies the candidate, and runs Solution::propagateForwardDarp
     // -- never mutates `solution` itself. overrideMaxRideTime is forwarded as
     // in Solution::propagateForwardDarp (see the discussion on why it's
-    // needed for a 2-vehicle leg tested in isolation).
+    // needed for a leg tested in isolation).
     bool verify(const Solution& solution, const InsertionResult& candidate, const RouteStop& pickupTemplate,
                 const RouteStop& deliveryTemplate, const int* overrideMaxRideTime = nullptr) const;
 
