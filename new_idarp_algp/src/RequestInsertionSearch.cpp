@@ -53,17 +53,6 @@ int patternRank(const RequestInsertionCandidate& c) {
     return (c.leg1.firstStop.role == StopRole::Pickup && c.leg1.secondStop.role == StopRole::Delivery) ? 0 : 1;
 }
 
-// Cost first; then the pattern; then routes, positions and stops, only so that
-// equal-cost candidates always come out in the same order (reproducible runs).
-bool candidateLess(const RequestInsertionCandidate& a, const RequestInsertionCandidate& b) {
-    auto key = [](const RequestInsertionCandidate& c) {
-        return std::make_tuple(c.cost, patternRank(c), c.leg1.routeIndex, c.leg1.posFirst, c.leg1.posSecond,
-                               c.leg1.firstStop.pointId, c.leg1.secondStop.pointId, c.leg2.routeIndex,
-                               c.leg2.posFirst, c.leg2.posSecond, c.leg2.firstStop.pointId);
-    };
-    return key(a) < key(b);
-}
-
 // Inserts the stop(s) of `candidate` (and its Transfer) into `solution`,
 // without refreshing anything. Returns the routes changed.
 std::vector<int> insertCandidate(Solution& solution, const RequestInsertionCandidate& candidate) {
@@ -90,13 +79,30 @@ std::vector<int> insertCandidate(Solution& solution, const RequestInsertionCandi
 }
 }  // namespace
 
+// Cost first; then the pattern; then routes, positions and stops, only so that
+// equal-cost candidates always come out in the same order (reproducible runs).
+bool RequestInsertionSearch::isBetter(const RequestInsertionCandidate& a, const RequestInsertionCandidate& b) {
+    auto key = [](const RequestInsertionCandidate& c) {
+        return std::make_tuple(c.cost, patternRank(c), c.leg1.routeIndex, c.leg1.posFirst, c.leg1.posSecond,
+                               c.leg1.firstStop.pointId, c.leg1.secondStop.pointId, c.leg2.routeIndex,
+                               c.leg2.posFirst, c.leg2.posSecond, c.leg2.firstStop.pointId);
+    };
+    return key(a) < key(b);
+}
+
+bool RequestInsertionSearch::touches(const RequestInsertionCandidate& candidate, const std::vector<bool>& routes) {
+    return routes[candidate.leg1.routeIndex] || (candidate.isTransfer && routes[candidate.leg2.routeIndex]);
+}
+
 void RequestInsertionSearch::collectDirect(const Solution& solution, int requestId,
+                                           const std::vector<bool>* onlyTouching,
                                            std::vector<RequestInsertionCandidate>& out) const {
     const Request& req = solution.instance().request(requestId);
     RouteStop pickup = makePickupTemplate(req, requestId);
     RouteStop delivery = makeDeliveryTemplate(req, requestId);
 
     for (int r = 0; r < solution.nbRoutes(); ++r) {
+        if (onlyTouching && !(*onlyTouching)[r]) continue;
         for (const auto& c : evaluator_.generateCandidates(solution, r, pickup, delivery, req.maxRideTime())) {
             RequestInsertionCandidate rc;
             rc.requestId = requestId;
@@ -108,6 +114,7 @@ void RequestInsertionSearch::collectDirect(const Solution& solution, int request
 }
 
 void RequestInsertionSearch::collectWalk(const Solution& solution, int requestId,
+                                         const std::vector<bool>* onlyTouching,
                                          std::vector<RequestInsertionCandidate>& out) const {
     const Request& req = solution.instance().request(requestId);
     const WalkAccess& walk = req.walkAccess();
@@ -124,6 +131,7 @@ void RequestInsertionSearch::collectWalk(const Solution& solution, int requestId
         }
 
         for (int r = 0; r < solution.nbRoutes(); ++r) {
+            if (onlyTouching && !(*onlyTouching)[r]) continue;
             for (const auto& c :
                  evaluator_.generateCandidates(solution, r, nearStop, farStop, walk.maxRideTimeForStop(stopId))) {
                 RequestInsertionCandidate rc;
@@ -137,6 +145,7 @@ void RequestInsertionSearch::collectWalk(const Solution& solution, int requestId
 }
 
 void RequestInsertionSearch::collectTransfer(const Solution& solution, int requestId,
+                                             const std::vector<bool>* onlyTouching,
                                              std::vector<RequestInsertionCandidate>& out) const {
     const Instance& instance = solution.instance();
     const Request& req = instance.request(requestId);
@@ -166,6 +175,7 @@ void RequestInsertionSearch::collectTransfer(const Solution& solution, int reque
         for (const auto& first : firstLegs) {
             for (const auto& last : lastLegs) {
                 if (first.routeIndex == last.routeIndex) continue;  // never the same vehicle for both legs
+                if (onlyTouching && !(*onlyTouching)[first.routeIndex] && !(*onlyTouching)[last.routeIndex]) continue;
                 if (!evaluator_.admitsTransfer(solution, first, pickup, stopBefore, last, stopAfter, delivery,
                                                pair.ptTravelTime, req.maxRideTime()))
                     continue;
@@ -193,13 +203,13 @@ bool RequestInsertionSearch::verifyCandidate(const Solution& solution,
     return trial.propagateForwardDarp(trial.dependentRoutes(candidate.leg1.routeIndex));
 }
 
-std::vector<RequestInsertionCandidate> RequestInsertionSearch::findInsertions(const Solution& solution,
-                                                                                int requestId, int maxResults) const {
+std::vector<RequestInsertionCandidate> RequestInsertionSearch::findInsertions(
+    const Solution& solution, int requestId, int maxResults, const std::vector<bool>* onlyTouching) const {
     std::vector<RequestInsertionCandidate> candidates;
-    collectDirect(solution, requestId, candidates);
-    collectWalk(solution, requestId, candidates);
-    collectTransfer(solution, requestId, candidates);
-    std::sort(candidates.begin(), candidates.end(), candidateLess);
+    collectDirect(solution, requestId, onlyTouching, candidates);
+    collectWalk(solution, requestId, onlyTouching, candidates);
+    collectTransfer(solution, requestId, onlyTouching, candidates);
+    std::sort(candidates.begin(), candidates.end(), isBetter);
 
     std::vector<RequestInsertionCandidate> pool;
     for (const auto& c : candidates) {
@@ -210,7 +220,22 @@ std::vector<RequestInsertionCandidate> RequestInsertionSearch::findInsertions(co
     return pool;
 }
 
-void RequestInsertionSearch::apply(Solution& solution, const RequestInsertionCandidate& candidate) const {
+void RequestInsertionSearch::updateInsertions(const Solution& solution, int requestId, int maxResults,
+                                              const std::vector<bool>& affected,
+                                              std::vector<RequestInsertionCandidate>& best) const {
+    if (best.empty()) return;
+    bool invalidated = std::any_of(best.begin(), best.end(),
+                                   [&affected](const RequestInsertionCandidate& c) { return touches(c, affected); });
+    if (invalidated) {
+        best = findInsertions(solution, requestId, maxResults);
+        return;
+    }
+    for (auto& c : findInsertions(solution, requestId, maxResults, &affected)) best.push_back(c);
+    std::sort(best.begin(), best.end(), isBetter);
+    if (static_cast<int>(best.size()) > maxResults) best.resize(maxResults);
+}
+
+std::vector<bool> RequestInsertionSearch::apply(Solution& solution, const RequestInsertionCandidate& candidate) const {
     std::vector<int> changed = insertCandidate(solution, candidate);
     solution.markAssigned(candidate.requestId);
     // The candidate was verified on this exact state by findInsertions(), so
@@ -219,4 +244,11 @@ void RequestInsertionSearch::apply(Solution& solution, const RequestInsertionCan
         std::cerr << "[RequestInsertionSearch::apply] committed candidate for request " << candidate.requestId
                   << " is infeasible -- verification and commit disagree\n";
     }
+
+    // Insertion costs depend on the stops of the route only, feasibility on
+    // the whole set of linked routes: both are unchanged outside these sets.
+    std::vector<bool> affected(solution.nbRoutes(), false);
+    for (int r : changed)
+        for (int linked : solution.dependentRoutes(r)) affected[linked] = true;
+    return affected;
 }

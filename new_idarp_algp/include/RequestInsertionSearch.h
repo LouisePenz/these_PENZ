@@ -38,27 +38,57 @@ struct RequestInsertionCandidate {
 // costlier than the ones finally returned.
 class RequestInsertionSearch {
 public:
-    // Returns up to maxResults feasible ways to insert `requestId`, sorted by
-    // total cost ascending. Does not mutate `solution` -- see apply() to
-    // actually commit a chosen candidate.
-    std::vector<RequestInsertionCandidate> findInsertions(const Solution& solution, int requestId,
-                                                            int maxResults) const;
+    // Returns up to maxResults feasible ways to insert `requestId`, best first
+    // (see isBetter). Does not mutate `solution` -- see apply() to actually
+    // commit a chosen candidate. With `onlyTouching`, only the candidates
+    // using at least one of the marked routes (indexed by route) are considered.
+    std::vector<RequestInsertionCandidate> findInsertions(const Solution& solution, int requestId, int maxResults,
+                                                            const std::vector<bool>* onlyTouching = nullptr) const;
 
     // Commits a candidate previously returned by findInsertions(): inserts
     // its stop(s) into the real solution, adds a Transfer if needed, marks
     // the request assigned, and refreshes the timing data of the routes involved.
-    void apply(Solution& solution, const RequestInsertionCandidate& candidate) const;
+    //
+    // Returns the routes (marked, indexed by route) whose insertion candidates
+    // may have changed: every route linked, after this insertion, to a route
+    // the candidate uses. Any candidate of another request using none of them
+    // keeps exactly the same cost and feasibility.
+    std::vector<bool> apply(Solution& solution, const RequestInsertionCandidate& candidate) const;
+
+    // Incremental findInsertions(): `best` holds the result of
+    // findInsertions(solution, requestId, maxResults) BEFORE an apply() that
+    // returned `affected`; it becomes the result for the current solution.
+    // - none of `best` touches `affected`: they are all still valid, and only
+    //   the candidates touching `affected` can do better -- only those are searched;
+    // - one of them does: full search;
+    // - `best` is empty: it stays empty, no search at all. Inserting a request
+    //   only adds constraints (drive times satisfy the triangle inequality),
+    //   so a request that cannot be inserted never becomes insertable.
+    void updateInsertions(const Solution& solution, int requestId, int maxResults, const std::vector<bool>& affected,
+                          std::vector<RequestInsertionCandidate>& best) const;
+
+    // The order of findInsertions(): cost, then pattern (direct, walk,
+    // 2-vehicle), then routes, positions and stops -- a strict total order,
+    // so equal-cost candidates always come out the same way.
+    static bool isBetter(const RequestInsertionCandidate& a, const RequestInsertionCandidate& b);
+
+    // True if `candidate` uses one of the marked routes.
+    static bool touches(const RequestInsertionCandidate& candidate, const std::vector<bool>& routes);
 
 private:
     // Each appends to `out` every candidate of its pattern admitted by the
-    // O(1) test -- none of them checked by the STP yet.
-    void collectDirect(const Solution& solution, int requestId, std::vector<RequestInsertionCandidate>& out) const;
-    void collectWalk(const Solution& solution, int requestId, std::vector<RequestInsertionCandidate>& out) const;
+    // O(1) test -- none of them checked by the STP yet -- restricted as in
+    // findInsertions() when onlyTouching is given.
+    void collectDirect(const Solution& solution, int requestId, const std::vector<bool>* onlyTouching,
+                       std::vector<RequestInsertionCandidate>& out) const;
+    void collectWalk(const Solution& solution, int requestId, const std::vector<bool>* onlyTouching,
+                     std::vector<RequestInsertionCandidate>& out) const;
     // Exhaustive: every (first leg, last leg) combination -- every valid pair
     // of PT stops, every pair of distinct routes, every position admitted for
     // each leg -- that passes the O(1) test of the whole request
     // (InsertionEvaluator::admitsTransfer).
-    void collectTransfer(const Solution& solution, int requestId, std::vector<RequestInsertionCandidate>& out) const;
+    void collectTransfer(const Solution& solution, int requestId, const std::vector<bool>* onlyTouching,
+                         std::vector<RequestInsertionCandidate>& out) const;
 
     // Exact check of any candidate: its stop(s), and Transfer if any, are
     // inserted in a copy of `solution`, then capacity and the STP of the
