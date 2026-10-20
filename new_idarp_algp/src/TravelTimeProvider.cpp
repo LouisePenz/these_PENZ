@@ -5,7 +5,10 @@
 #include <iostream>
 
 TravelTimeProvider::TravelTimeProvider(const PointRegistry& registry)
-    : registry_(registry) {}
+    : registry_(registry),
+      nbVertices_(registry.nbVertices()),
+      nbStops_(registry.nbStops()),
+      firstPtStop_(registry.fromPtLocalIndex(0)) {}
 
 void TravelTimeProvider::loadMatrix(int rows, int cols, std::vector<int>& matrix, const std::string& filename) {
     std::ifstream in(filename, std::ios::in);
@@ -37,18 +40,4 @@ void TravelTimeProvider::loadWalkTime(const std::string& filename) {
 void TravelTimeProvider::loadPublicTransportTime(const std::string& filename) {
     int nbStops = registry_.nbStops();
     loadMatrix(nbStops, nbStops, publicTransportTime_, filename);
-}
-
-int TravelTimeProvider::driveTime(int i, int j) const noexcept {
-    return driveTime_[static_cast<size_t>(i) * registry_.nbVertices() + j];
-}
-
-int TravelTimeProvider::walkTime(int i, int j) const noexcept {
-    return walkTime_[static_cast<size_t>(i) * registry_.nbVertices() + j];
-}
-
-int TravelTimeProvider::publicTransportTime(int stopBefore, int stopAfter) const noexcept {
-    int sb = registry_.toPtLocalIndex(stopBefore);
-    int sa = registry_.toPtLocalIndex(stopAfter);
-    return publicTransportTime_[static_cast<size_t>(sb) * registry_.nbStops() + sa] + waitingTime_;
 }

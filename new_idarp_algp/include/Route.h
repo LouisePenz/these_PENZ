@@ -64,8 +64,8 @@ public:
     // Point id of the vertex right before/after a given insertion position
     // (0 == right after the depot). Returns the depot's point id at the
     // boundaries.
-    int pointBefore(int position) const;
-    int pointAfter(int position) const;
+    int pointBefore(int position) const { return (position == 0) ? depotPointId_ : stops_[position - 1].pointId; }
+    int pointAfter(int position) const { return (position == size()) ? depotPointId_ : stops_[position].pointId; }
 
     // Inserts a stop so that it ends up at index `position` (shifts the rest
     // of the route right). Does not update any time window or load data --

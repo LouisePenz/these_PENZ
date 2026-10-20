@@ -159,6 +159,17 @@ std::vector<InsertionEvaluator::InsertionResult> InsertionEvaluator::generateCan
     const TravelTimeProvider& tt = solution.instance().travelTimes();
     int n = route.size();
 
+    // Cost of inserting the delivery alone at each gap of the original route:
+    // computed once here, instead of once per pickup position in the loop below.
+    thread_local std::vector<int> costDeliveryAlone;
+    costDeliveryAlone.resize(n + 1);
+    for (int posDelivery = 0; posDelivery <= n; ++posDelivery) {
+        int beforeD = route.pointBefore(posDelivery);
+        int afterD = route.pointAfter(posDelivery);
+        costDeliveryAlone[posDelivery] = tt.driveTime(beforeD, deliveryTemplate.pointId) +
+                                         tt.driveTime(deliveryTemplate.pointId, afterD) - tt.driveTime(beforeD, afterD);
+    }
+
     std::vector<InsertionResult> candidates;
     for (int posPickup = 0; posPickup <= n; ++posPickup) {
         int beforeP = route.pointBefore(posPickup);
@@ -183,13 +194,10 @@ std::vector<InsertionEvaluator::InsertionResult> InsertionEvaluator::generateCan
         FirstStop pickupPlaced = placeFirst(solution, routeIndex, posPickup, pickupTemplate);
         if (!pickupPlaced.admitted) continue;
         for (int posDelivery = posPickup + 1; posDelivery <= n; ++posDelivery) {
-            int beforeD = route.pointBefore(posDelivery);
-            int afterD = route.pointAfter(posDelivery);
-            int costDeliveryAlone = tt.driveTime(beforeD, deliveryTemplate.pointId) +
-                                    tt.driveTime(deliveryTemplate.pointId, afterD) - tt.driveTime(beforeD, afterD);
-            if (costPickupAlone + costDeliveryAlone >= costBound) continue;
+            int cost = costPickupAlone + costDeliveryAlone[posDelivery];
+            if (cost >= costBound) continue;
             if (!placeSecond(solution, pickupPlaced, posDelivery, deliveryTemplate, maxRideTime).admitted) continue;
-            candidates.push_back({routeIndex, posPickup, posDelivery, costPickupAlone + costDeliveryAlone});
+            candidates.push_back({routeIndex, posPickup, posDelivery, cost});
         }
     }
     return candidates;

@@ -10,14 +10,6 @@ Route::Route(int vehicleId, int capacity, int depotPointId, int depotDeparture, 
       depotDeparture_(depotDeparture),
       depotReturnDeadline_(depotReturnDeadline) {}
 
-int Route::pointBefore(int position) const {
-    return (position == 0) ? depotPointId_ : stops_[position - 1].pointId;
-}
-
-int Route::pointAfter(int position) const {
-    return (position == size()) ? depotPointId_ : stops_[position].pointId;
-}
-
 void Route::insertStop(int position, RouteStop stop) {
     assert(position >= 0 && position <= size());
     stops_.insert(stops_.begin() + position, stop);
