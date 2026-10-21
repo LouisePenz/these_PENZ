@@ -42,7 +42,7 @@ public:
     int nbPtOptions() const noexcept { return nbPtOptions_; }
     double worstRemovalRandomness() const noexcept { return worstRemovalRandomness_; }
     double relatedRemovalRandomness() const noexcept { return relatedRemovalRandomness_; }
-    int setPartitioningPoolSize() const noexcept { return setPartitioningPoolSize_; }
+    int setPartitioningPoolRatio() const noexcept { return setPartitioningPoolRatio_; }
 
 private:
     // --- Search parameters (searchConfigFile) ---
@@ -68,8 +68,10 @@ private:
     // key, default 6 (Ropke & Pisinger 2006).
     double relatedRemovalRandomness_ = 6.0;
     // The LNS runs the set partitioning each time its pool of routes reaches
-    // this size, then empties it (see LNS). Optional key, default 10000.
-    int setPartitioningPoolSize_ = 10000;
+    // this ratio / the number of requests routes, then empties it (see LNS).
+    // Optional key, default 15000 * 30: 15000 routes for 30 requests, 4500
+    // for 100.
+    int setPartitioningPoolRatio_ = 15000 * 30;
 
     // --- Instance-related runtime parameters (instanceConfigFile) ---
     int timeLimit_ = 0;

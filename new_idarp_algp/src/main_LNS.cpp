@@ -36,6 +36,9 @@ void printHelp() {
     std::cout << "  -v \"file with the minimum number of vehicles\"             | Mandatory | (main_nb_vehicles -res); uses it + 1\n";
     std::cout << "  -f \"folder of instance/drive time/ public transport time\" | Optional  | Default \"./\"\n";
     std::cout << "  -s \"random seed\"                                          | Optional  | Default current time\n";
+    std::cout << "  -sp \"file\"                                                | Optional  | One line per set partitioning\n";
+    std::cout << "                                                            |           | run: nb routes, best before,\n";
+    std::cout << "                                                            |           | recombined (NA if none)\n";
     std::cout << "  -check                                                    | Optional  | Check the initial and best\n";
     std::cout << "                                                            |           | solutions (SolutionChecker),\n";
     std::cout << "                                                            |           | report on stderr\n";
@@ -173,17 +176,29 @@ int main(int argc, char* argv[]) {
     //std::cout << "Optimizing...\n";
     LNS lns(conf, makeDestroyers(conf), makeRepairers());
     lns.setLog(check ? &std::cerr : nullptr);
+    std::ofstream spTrace;
+    if (getOptionValue(argc, argv, "-sp") != nullptr) {
+        spTrace.open(getOptionValue(argc, argv, "-sp"));
+        lns.setSetPartitioningTrace(&spTrace);
+    }
     Solution best = lns.compute(sInit, conf.timeLimit()-secondsSince(start));
     best.computeObjectiveFunction();
     if (check) {
         std::cerr << "Best solution:\n";
-        checkSolution(best, std::cerr);
+        // It may come from a set partitioning run, with stop pairs outside
+        // the requests' candidates.
+        checkSolution(best, std::cerr, /*requireCandidatePairs=*/false);
     }
 
-    // Stage 3: set partitioning over the routes of every complete solution
-    // met by the LNS, recombined (no time limit for now).
+    // Stage 3: a last set partitioning over the rest of the routes -- those
+    // collected since the LNS last ran it, plus the best solution's (no time
+    // limit for now).
     Solution recombined(instance);
-    if (solveSetPartitioning(lns.pool(), best, recombined, check ? &std::cerr : nullptr)) {
+    bool found = solveSetPartitioning(lns.pool(), best, recombined, check ? &std::cerr : nullptr);
+    if (spTrace.is_open())
+        writeSetPartitioningTrace(spTrace, lns.pool().size(), best.objectiveFunction(), found,
+                                  recombined.objectiveFunction());
+    if (found) {
         if (check) {
             std::cerr << "Set partitioning solution:\n";
             // Its transfers may use stop pairs outside the requests' candidates.

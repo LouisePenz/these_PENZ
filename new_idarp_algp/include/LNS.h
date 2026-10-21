@@ -40,8 +40,8 @@ public:
     int lastChangeIteration() const noexcept { return lastChangeIteration_; }
     // The routes of the complete solutions met by compute() -- sInit and
     // every feasible repaired solution, accepted or not -- since the last set
-    // partitioning: each time the pool reaches conf.setPartitioningPoolSize()
-    // routes, the set partitioning runs on it (within the time left); a
+    // partitioning: each time the pool reaches
+    // conf.setPartitioningPoolRatio() / (number of requests) routes, the set partitioning runs on it (within the time left); a
     // better solution becomes both the best and the current one; the pool is
     // then emptied, and starts again from the routes of the best solution (so
     // that the next run can start from it). What is left at the end is for a
@@ -49,6 +49,10 @@ public:
     const RoutePool& pool() const noexcept { return pool_; }
     // Where the set partitioning runs report (none if null, the default).
     void setLog(std::ostream* log) noexcept { log_ = log; }
+    // One line per set partitioning run, if not null (the default): the
+    // number of routes, the best objective before the run and the objective
+    // found by the run (NA if none). See writeSetPartitioningTrace.
+    void setSetPartitioningTrace(std::ostream* trace) noexcept { spTrace_ = trace; }
 
 private:
     Destroyer& pickDestroyer();
@@ -62,4 +66,9 @@ private:
     int lastChangeIteration_ = 0;
     RoutePool pool_;
     std::ostream* log_ = nullptr;
+    std::ostream* spTrace_ = nullptr;
 };
+
+// The trace line of one set partitioning run: "nbRoutes best recombined",
+// recombined being NA if the run found no solution.
+void writeSetPartitioningTrace(std::ostream& trace, int nbRoutes, int best, bool found, int recombined);

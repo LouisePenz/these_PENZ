@@ -1,6 +1,7 @@
 #include "LNS.h"
 
 #include <cstdlib>
+#include <ostream>
 
 #include "Clock.h"
 #include "SetPartitioning.h"
@@ -23,6 +24,7 @@ Solution LNS::compute(const Solution& sInit, int timeLimit) {
     int removeMin = nbRequests * conf_->percentRequestsRemovedMin() / 100;
     int removeMax = nbRequests * conf_->percentRequestsRemovedMax() / 100;
     if (removeMax < removeMin) removeMax = removeMin;
+    int poolSizeForSetPartitioning = conf_->setPartitioningPoolRatio() / nbRequests;
 
     int nbIterationsAccepted = 0;
     int nbIterationsFeasible = 0;
@@ -58,13 +60,18 @@ Solution LNS::compute(const Solution& sInit, int timeLimit) {
         }
         ++iteration_;
 
-        if (pool_.size() >= conf_->setPartitioningPoolSize()) {
+        if (pool_.size() >= poolSizeForSetPartitioning) {
             double timeLeft = timeLimit - secondsSince(start);
             Solution recombined(current.instance());
-            if (timeLeft > 0 && solveSetPartitioning(pool_, best, recombined, log_, timeLeft) &&
-                recombined.objectiveFunction() < best.objectiveFunction()) {
-                best = recombined;
-                current = recombined;
+            if (timeLeft > 0) {
+                bool found = solveSetPartitioning(pool_, best, recombined, log_, timeLeft);
+                if (spTrace_)
+                    writeSetPartitioningTrace(*spTrace_, pool_.size(), best.objectiveFunction(), found,
+                                              recombined.objectiveFunction());
+                if (found && recombined.objectiveFunction() < best.objectiveFunction()) {
+                    best = recombined;
+                    current = recombined;
+                }
             }
             pool_.clear();
             pool_.add(best);
@@ -83,4 +90,11 @@ Solution LNS::compute(const Solution& sInit, int timeLimit) {
     }
 
     return best;
+}
+
+void writeSetPartitioningTrace(std::ostream& trace, int nbRoutes, int best, bool found, int recombined) {
+    trace << nbRoutes << " " << best << " ";
+    if (found) trace << recombined;
+    else trace << "NA";
+    trace << std::endl;
 }
