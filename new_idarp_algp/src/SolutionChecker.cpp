@@ -85,7 +85,8 @@ bool checkOrder(ViolationLog& log, int requestId, const PlacedStop& first, const
 }  // namespace
 
 // Checks the schedule stored in ltwDarp of `scheduled` against the model.
-static int checkSchedule(const Solution& scheduled, const std::string& label, std::ostream& out) {
+static int checkSchedule(const Solution& scheduled, const std::string& label, std::ostream& out,
+                         bool requireCandidatePairs) {
     const Instance& instance = scheduled.instance();
     const TravelTimeProvider& tt = instance.travelTimes();
     const int horizon = instance.horizonTime();
@@ -241,7 +242,7 @@ static int checkSchedule(const Solution& scheduled, const std::string& label, st
             bool candidatePair = std::any_of(pt.pairs().begin(), pt.pairs().end(), [&](const StopPair& p) {
                 return p.stopBefore == stopBefore.pointId && p.stopAfter == stopAfter.pointId;
             });
-            if (!candidatePair)
+            if (requireCandidatePairs && !candidatePair)
                 log.add("PT stop pair not among the request's candidates",
                         req(requestId) + ": stops " + std::to_string(stopBefore.pointId) + " -> " +
                             std::to_string(stopAfter.pointId));
@@ -290,13 +291,13 @@ static int checkSchedule(const Solution& scheduled, const std::string& label, st
     return log.total();
 }
 
-int checkSolution(const Solution& solution, std::ostream& out) {
+int checkSolution(const Solution& solution, std::ostream& out, bool requireCandidatePairs) {
     Solution scheduled = solution;
     if (!scheduled.propagateForwardDarp()) {
         out << "[checkSolution] propagateForwardDarp reports the solution infeasible -- no schedule to check\n";
         return 1;
     }
-    int nbViolations = checkSchedule(scheduled, "earliest", out);
+    int nbViolations = checkSchedule(scheduled, "earliest", out, requireCandidatePairs);
 
     if (!scheduled.propagateBackwardDarp()) {
         out << "[checkSolution] propagateBackwardDarp reports the solution infeasible although the forward pass "
@@ -320,5 +321,5 @@ int checkSolution(const Solution& solution, std::ostream& out) {
         }
     }
     if (nbInverted > 0) out << "[checkSolution] " << nbInverted << " stop(s) with latest time < earliest time\n";
-    return nbViolations + nbInverted + checkSchedule(latest, "latest", out);
+    return nbViolations + nbInverted + checkSchedule(latest, "latest", out, requireCandidatePairs);
 }

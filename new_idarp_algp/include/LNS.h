@@ -1,11 +1,13 @@
 #pragma once
 
+#include <iosfwd>
 #include <memory>
 #include <vector>
 
 #include "ConfLNS.h"
 #include "Destroyer.h"
 #include "Repairer.h"
+#include "RoutePool.h"
 #include "Solution.h"
 
 // Large Neighborhood Search that only ever accepts complete solutions: if a
@@ -36,6 +38,17 @@ public:
 
     int lastIteration() const noexcept { return iteration_; }
     int lastChangeIteration() const noexcept { return lastChangeIteration_; }
+    // The routes of the complete solutions met by compute() -- sInit and
+    // every feasible repaired solution, accepted or not -- since the last set
+    // partitioning: each time the pool reaches conf.setPartitioningPoolSize()
+    // routes, the set partitioning runs on it (within the time left); a
+    // better solution becomes both the best and the current one; the pool is
+    // then emptied, and starts again from the routes of the best solution (so
+    // that the next run can start from it). What is left at the end is for a
+    // last run by the caller.
+    const RoutePool& pool() const noexcept { return pool_; }
+    // Where the set partitioning runs report (none if null, the default).
+    void setLog(std::ostream* log) noexcept { log_ = log; }
 
 private:
     Destroyer& pickDestroyer();
@@ -47,4 +60,6 @@ private:
 
     int iteration_ = 0;
     int lastChangeIteration_ = 0;
+    RoutePool pool_;
+    std::ostream* log_ = nullptr;
 };

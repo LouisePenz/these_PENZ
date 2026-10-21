@@ -29,4 +29,8 @@ class Solution;
 // (ltwDarp), on a copy of `solution`. Unassigned requests are reported but are
 // not violations. Prints a summary (plus a few examples per kind of violation)
 // to `out` and returns the number of violations found.
-int checkSolution(const Solution& solution, std::ostream& out);
+//
+// requireCandidatePairs: a transfer through a stop pair outside the request's
+// candidates (Request::ptAccess) is a violation -- the LNS only uses those;
+// the set partitioning may recombine legs into any pair.
+int checkSolution(const Solution& solution, std::ostream& out, bool requireCandidatePairs = true);

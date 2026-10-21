@@ -81,19 +81,34 @@ bool Instance::isValidStopPair(int req, int stopBefore, int stopAfter) const {
            travelTimes_.publicTransportTime(stopBefore, stopAfter) >= travelTimes_.minimumTimeInTransit();
 }
 
+StopPair Instance::stopPair(int req, int stopBefore, int stopAfter) const {
+    // Times are service start times; the request spends L at pickup,
+    // stopBefore (alighting) and stopAfter (boarding) within its ride time.
+    const Request& r = requests_[req];
+    int L = r.loadingTime();
+    int ltwP = r.pickupWindow().lowerBound;
+    int utwD = r.deliveryWindow().upperBound;
+    int toStop = travelTimes_.driveTime(r.pickupId(), stopBefore);
+    int fromStop = travelTimes_.driveTime(stopAfter, r.deliveryId());
+    StopPair p;
+    p.stopBefore = stopBefore;
+    p.stopAfter = stopAfter;
+    p.ptTravelTime = travelTimes_.publicTransportTime(stopBefore, stopAfter);
+    p.windowBefore = {ltwP + L + toStop, utwD - L - fromStop - L - p.ptTravelTime};
+    p.windowAfter = {ltwP + L + toStop + L + p.ptTravelTime, utwD - L - fromStop};
+    p.maxRideTimeFirstLeg = r.maxRideTime() - 2 * L - p.ptTravelTime - fromStop;
+    p.maxRideTimeLastLeg = r.maxRideTime() - 2 * L - toStop - p.ptTravelTime;
+    return p;
+}
+
 void Instance::computeStopPairs(int maxPairs) {
     int firstStop = 1 + 2 * registry_.nbRequests();
     int lastStop = firstStop + registry_.nbStops();
 
     for (int req = 0; req < nbRequests(); ++req) {
         Request& r = requests_[req];
-        int L = r.loadingTime();
-        int ltwP = r.pickupWindow().lowerBound;
-        int utwD = r.deliveryWindow().upperBound;
 
-        // Every valid pair, with its derived data. Times are service start
-        // times; the request spends L at pickup, stopBefore (alighting) and
-        // stopAfter (boarding) within its ride time.
+        // Every valid pair, with its derived data (see stopPair).
         struct Ranked {
             int accessCost;
             StopPair pair;
@@ -102,18 +117,9 @@ void Instance::computeStopPairs(int maxPairs) {
         for (int sb = firstStop; sb < lastStop; ++sb) {
             for (int sa = firstStop; sa < lastStop; ++sa) {
                 if (!isValidStopPair(req, sb, sa)) continue;
-                int toStop = travelTimes_.driveTime(r.pickupId(), sb);
-                int fromStop = travelTimes_.driveTime(sa, r.deliveryId());
-                StopPair p;
-                p.stopBefore = sb;
-                p.stopAfter = sa;
-                p.ptTravelTime = travelTimes_.publicTransportTime(sb, sa);
-                p.windowBefore = {ltwP + L + toStop, utwD - L - fromStop - L - p.ptTravelTime};
-                p.windowAfter = {ltwP + L + toStop + L + p.ptTravelTime, utwD - L - fromStop};
-                p.maxRideTimeFirstLeg = r.maxRideTime() - 2 * L - p.ptTravelTime - fromStop;
-                p.maxRideTimeLastLeg = r.maxRideTime() - 2 * L - toStop - p.ptTravelTime;
+                StopPair p = stopPair(req, sb, sa);
                 if (p.windowBefore.lowerBound > p.windowBefore.upperBound) continue;  // no time for the whole trip
-                valid.push_back({toStop + travelTimes_.driveTime(r.deliveryId(), sa), p});
+                valid.push_back({travelTimes_.driveTime(r.pickupId(), sb) + travelTimes_.driveTime(r.deliveryId(), sa), p});
             }
         }
 

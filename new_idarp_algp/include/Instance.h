@@ -43,6 +43,10 @@ public:
     // The criterion for a usable (stopBefore, stopAfter) pair: ride-time
     // feasible, and PT ride at least the minimum time in transit.
     bool isValidStopPair(int req, int stopBefore, int stopAfter) const;
+    // The derived data (PT time, windows, leg maximum ride times) of request
+    // req going through stopBefore -> [PT] -> stopAfter, whether or not this
+    // pair is among its candidates.
+    StopPair stopPair(int req, int stopBefore, int stopAfter) const;
 
     // In case of a transfer with a walking leg, the maximum ride time allowed
     // for the vehicle leg opposite to the walk, when the vehicle serves PT stop

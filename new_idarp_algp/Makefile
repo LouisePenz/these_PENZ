@@ -70,9 +70,10 @@ endif
 
 
 LDFLAGS  := -L$(CPLEXDIR)/cplex/lib/x86-64_linux/static_pic -L$(CPLEXDIR)/concert/lib/x86-64_linux/static_pic -L$(CPLEXDIR)/cpoptimizer/lib/x86-64_linux/static_pic -L$(CPLEXDIR)/opl/lib/x86-64_linux/static_pic -L$(CPLEXDIR)/opl/bin/x86-64_linux/ -L/usr/lib/x86_64-linux-gnu/
-LDLIBS   :=-lm -licuuc -licui18n -licuio -licudata -lpthread -ldl # -loplnl1   -lconfig -lconfig++  -lcplex2211 -lconcert -lopl -lcp -lilocplex -liljs
+LDLIBS   :=-lilocplex -lconcert -lcplex -lm -licuuc -licui18n -licuio -licudata -lpthread -ldl # -loplnl1   -lconfig -lconfig++  -lcplex2211 -lconcert -lopl -lcp -lilocplex -liljs
 
-INCLUDE  :=-I$(INCDIR)  -I$(CPLEXDIR)/cplex/include -I$(CPLEXDIR)/concert/include -I$(CPLEXDIR)/cpoptimizer/include -I$(CPLEXDIR)/opl/include 
+# -isystem: CPLEX's own headers are not held to -Wall -Werror.
+INCLUDE  :=-I$(INCDIR) -isystem $(CPLEXDIR)/cplex/include -isystem $(CPLEXDIR)/concert/include
 ### TESTS-RELATED VARIABLES
 # Files containing the main() function
 TMAINFILES :=$(wildcard $(TSTDIR)/*.cpp)

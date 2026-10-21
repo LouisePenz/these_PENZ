@@ -3,6 +3,7 @@
 #include <cstdlib>
 
 #include "Clock.h"
+#include "SetPartitioning.h"
 
 LNS::LNS(const ConfLNS& conf, std::vector<std::unique_ptr<Destroyer>> destroyers,
          std::vector<std::unique_ptr<Repairer>> repairers)
@@ -15,6 +16,7 @@ Solution LNS::compute(const Solution& sInit, int timeLimit) {
     Solution current = sInit;
     current.computeObjectiveFunction();
     Solution best = current;
+    if (current.unassignedRequests().empty()) pool_.add(current);
 
     float recordToRecordValue = conf_->recordToRecordValue();
     int nbRequests = current.instance().nbRequests();
@@ -41,6 +43,7 @@ Solution LNS::compute(const Solution& sInit, int timeLimit) {
         if (feasible) {
             trial.computeObjectiveFunction();
             ++nbIterationsFeasible;
+            pool_.add(trial);
 
             if (trial.objectiveFunction() <= current.objectiveFunction() * (1.0f + recordToRecordValue)) {
                 ++nbIterationsAccepted;
@@ -54,6 +57,18 @@ Solution LNS::compute(const Solution& sInit, int timeLimit) {
             // `current` was never touched, nothing to restore.
         }
         ++iteration_;
+
+        if (pool_.size() >= conf_->setPartitioningPoolSize()) {
+            double timeLeft = timeLimit - secondsSince(start);
+            Solution recombined(current.instance());
+            if (timeLeft > 0 && solveSetPartitioning(pool_, best, recombined, log_, timeLeft) &&
+                recombined.objectiveFunction() < best.objectiveFunction()) {
+                best = recombined;
+                current = recombined;
+            }
+            pool_.clear();
+            pool_.add(best);
+        }
 
         if (conf_->updateIteration() > 0 && nbIterationsFeasible == conf_->updateIteration()) {
             int acceptedPercent = 100 * nbIterationsAccepted / conf_->updateIteration();

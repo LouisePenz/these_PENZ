@@ -18,6 +18,7 @@
 #include "RandomRepair.h"
 #include "RegretRepair.h"
 #include "Repairer.h"
+#include "SetPartitioning.h"
 #include "Solution.h"
 #include "SolutionChecker.h"
 #include <Clock.h>
@@ -171,11 +172,24 @@ int main(int argc, char* argv[]) {
     // Stage 2: improve it, requiring every request to stay assigned.
     //std::cout << "Optimizing...\n";
     LNS lns(conf, makeDestroyers(conf), makeRepairers());
+    lns.setLog(check ? &std::cerr : nullptr);
     Solution best = lns.compute(sInit, conf.timeLimit()-secondsSince(start));
     best.computeObjectiveFunction();
     if (check) {
         std::cerr << "Best solution:\n";
         checkSolution(best, std::cerr);
+    }
+
+    // Stage 3: set partitioning over the routes of every complete solution
+    // met by the LNS, recombined (no time limit for now).
+    Solution recombined(instance);
+    if (solveSetPartitioning(lns.pool(), best, recombined, check ? &std::cerr : nullptr)) {
+        if (check) {
+            std::cerr << "Set partitioning solution:\n";
+            // Its transfers may use stop pairs outside the requests' candidates.
+            checkSolution(recombined, std::cerr, /*requireCandidatePairs=*/false);
+        }
+        if (recombined.objectiveFunction() < best.objectiveFunction()) best = recombined;
     }
     /*std::cout << "Best solution: " << best.unassignedRequests().size() << " unassigned request(s), objective "
               << best.objectiveFunction() << " (" << lns.lastIteration() << " iteration(s), last change at "

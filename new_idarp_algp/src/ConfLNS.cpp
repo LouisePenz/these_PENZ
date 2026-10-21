@@ -52,6 +52,8 @@ ConfLNS::ConfLNS(const std::string& searchConfigFile, const std::string& instanc
         worstRemovalRandomness_ = std::stod(searchConfig.at("worst_removal_randomness"));
     if (searchConfig.count("related_removal_randomness"))
         relatedRemovalRandomness_ = std::stod(searchConfig.at("related_removal_randomness"));
+    if (searchConfig.count("set_partitioning_pool_size"))
+        setPartitioningPoolSize_ = std::stoi(searchConfig.at("set_partitioning_pool_size"));
 
     std::map<std::string, std::string> instanceConfig = parseKeyValueFile(instanceConfigFile);
     waitingTime_ = std::stoi(instanceConfig.at("waiting_time"));
