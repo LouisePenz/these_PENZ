@@ -6,6 +6,7 @@
 #include <numeric>
 
 #include "LinkedRoutesTiming.h"
+#include "RouteDarpTiming.h"
 
 namespace {
 const char* roleName(StopRole role) {
@@ -41,12 +42,15 @@ Solution::Solution(const Instance& instance) : instance_(&instance) {
     for (int r = 0; r < instance.nbRequests(); ++r) unassignedRequests_.push_back(r);
 
     timing_.resize(routes_.size());
+    routeTiming_.resize(routes_.size());
     std::vector<int> allRoutes(nbRoutes());
     std::iota(allRoutes.begin(), allRoutes.end(), 0);
     refreshTiming(allRoutes);
 }
 
 const LinkedRoutesTiming& Solution::timing(int route) const { return *timing_[route]; }
+
+const RouteDarpTiming& Solution::routeTiming(int route) const { return *routeTiming_[route]; }
 
 bool Solution::refreshTiming(const std::vector<int>& changedRoutes) {
     bool feasible = true;
@@ -64,7 +68,10 @@ bool Solution::refreshTiming(const std::vector<int>& changedRoutes) {
             feasible = false;
         }
         auto timing = std::make_shared<const LinkedRoutesTiming>(*this, linked);
-        for (int r : linked) timing_[r] = timing;
+        for (int r : linked) {
+            timing_[r] = timing;
+            routeTiming_[r] = std::make_shared<const RouteDarpTiming>(*this, r);
+        }
     }
     return feasible;
 }

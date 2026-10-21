@@ -124,6 +124,91 @@ InsertionEvaluator::LegEstimate InsertionEvaluator::estimateLeg(const Solution& 
     return est;
 }
 
+bool InsertionEvaluator::admitsInRoute(const Solution& solution, int routeIndex, int posFirst, int posSecond,
+                                       const RouteStop& first, const RouteStop& second, int maxRideTime) const {
+    const RouteDarpTiming& rt = solution.routeTiming(routeIndex);
+    const TravelTimeProvider& tt = solution.instance().travelTimes();
+    // Nodes of the route (0 = depot departure, 1 + i = stop i): `first` goes
+    // between k and k + 1, `second` between l and l + 1. Travel times include
+    // the service at their origin.
+    const int k = posFirst, k1 = posFirst + 1;
+    const int travelKF = rt.serviceTime(k) + tt.driveTime(rt.pointId(k), first.pointId);
+
+    // Algorithm 2, lines 1-2: first stop as early as it can be reached.
+    int tF = std::max(first.windowLtw, rt.earliest(k) + travelKF);
+    if (tF > first.windowUtw) return false;
+
+    if (posSecond == posFirst) {
+        // Second stop right after the first (k = l). Second as early as
+        // possible; then first as late as possible given that, which also
+        // gives the shortest ride between them and the latest service at k.
+        const int travelFS = first.serviceTime + tt.driveTime(first.pointId, second.pointId);
+        const int travelSK1 = second.serviceTime + tt.driveTime(second.pointId, rt.pointId(k1));
+        int tS = std::max(second.windowLtw, tF + travelFS);
+        if (tS > second.windowUtw) return false;
+        int tK1 = std::max(rt.earliest(k1), tS + travelSK1);
+        tF = std::min(first.windowUtw, tS - travelFS);
+        if (tS - tF > maxRideTime) return false;
+        int tK = std::min(rt.latest(k), tF - travelKF);
+        return tK1 <= rt.latestGiven(k1, k, tK);
+    }
+
+    // Algorithm 2, lines 3-6: the shift at k + 1, with first and k as late as
+    // possible given it.
+    const int travelFK1 = first.serviceTime + tt.driveTime(first.pointId, rt.pointId(k1));
+    int tK1 = std::max(rt.earliest(k1), tF + travelFK1);
+    tF = std::min(first.windowUtw, tK1 - travelFK1);
+    int tK = std::min(rt.latest(k), tF - travelKF);
+    if (tK1 > rt.latestGiven(k1, k, tK)) return false;
+
+    // Algorithm 3. When l = k + 1 (second case of Section 5.2.4), node l is
+    // node k + 1 itself: tL and tK1 are the same service time.
+    const int l = posSecond, l1 = posSecond + 1;
+    const bool lIsK1 = (l == k1);
+    const int travelLS = rt.serviceTime(l) + tt.driveTime(rt.pointId(l), second.pointId);
+    const int travelSL1 = second.serviceTime + tt.driveTime(second.pointId, rt.pointId(l1));
+    // Waiting between k + 1 (between `first` when l = k + 1) and `second`.
+    auto waitingBeforeSecond = [&](int tS) {
+        if (lIsK1) return tS - tF - travelFK1 - travelLS;
+        return tS - tK1 - rt.cumulativeTravel(k1, l) - travelLS;
+    };
+
+    // Lines 1-4: earliest service times at l, second, l + 1.
+    int tL = lIsK1 ? tK1 : std::max(rt.earliest(l), tK1 + rt.cumulativeTravel(k1, l));
+    int tS = std::max(second.windowLtw, tL + travelLS);
+    if (tS > second.windowUtw) return false;
+    int tL1 = std::max(rt.earliest(l1), tS + travelSL1);
+    // Line 5: l as late as possible given second and k.
+    tL = std::min(rt.latestGiven(l, k, tK), tS - travelLS);
+    if (lIsK1) tK1 = tL;
+
+    // Lines 6-14: shift at l + 1, repaired if possible by serving k (and
+    // first) later, which loosens the ride times of requests open at l + 1.
+    int shift = tL1 - rt.latestGiven(l1, k, tK, l, tL);
+    if (shift > 0) {
+        if (tK + shift > rt.latest(k) || tF + shift > first.windowUtw || shift > waitingBeforeSecond(tS)) return false;
+        tK += shift;
+        tF += shift;
+        tK1 = lIsK1 ? std::max(tK1, tF + travelFK1) : tK1 + shift;
+        if (tK1 > rt.latestGiven(k1, k, tK)) return false;
+        tL = std::min(rt.latestGiven(l, k, tK), tS - travelLS);
+        if (lIsK1) tK1 = tL;
+        if (tL1 > rt.latestGiven(l1, k, tK, l, tL)) return false;
+    }
+
+    // Lines 15-21: ride time of the inserted request, repaired if possible by
+    // serving the first stop later (the second one is already as early as possible).
+    int excess = tS - (tF + maxRideTime);
+    if (excess > 0) {
+        if (tF + excess > first.windowUtw || excess > waitingBeforeSecond(tS)) return false;
+        tF += excess;
+        tK1 = lIsK1 ? std::max(tK1, tF + travelFK1) : tK1 + excess;
+        tK = std::min(rt.latest(k), tF - travelKF);
+        if (tK1 > rt.latestGiven(k1, k, tK)) return false;
+    }
+    return true;
+}
+
 bool InsertionEvaluator::admitsTransfer(const Solution& solution, const InsertionResult& leg1, const RouteStop& pickup,
                                         const RouteStop& stopBefore, const InsertionResult& leg2,
                                         const RouteStop& stopAfter, const RouteStop& delivery, int ptTravelTime,
@@ -179,9 +264,13 @@ std::vector<InsertionEvaluator::InsertionResult> InsertionEvaluator::generateCan
         int adjacentCost = tt.driveTime(beforeP, pickupTemplate.pointId) +
                            tt.driveTime(pickupTemplate.pointId, deliveryTemplate.pointId) +
                            tt.driveTime(deliveryTemplate.pointId, afterP) - tt.driveTime(beforeP, afterP);
+        // Two necessary conditions: the delays propagated to the linked
+        // routes (Masson et al., estimateLeg), and the route seen as a DARP
+        // route with every ride time (Gschwind & Drexl, admitsInRoute).
         if (adjacentCost < costBound &&
             estimateLeg(solution, routeIndex, posPickup, posPickup, pickupTemplate, deliveryTemplate, maxRideTime)
-                .admitted) {
+                .admitted &&
+            admitsInRoute(solution, routeIndex, posPickup, posPickup, pickupTemplate, deliveryTemplate, maxRideTime)) {
             candidates.push_back({routeIndex, posPickup, posPickup, adjacentCost});
         }
 
@@ -197,6 +286,9 @@ std::vector<InsertionEvaluator::InsertionResult> InsertionEvaluator::generateCan
             int cost = costPickupAlone + costDeliveryAlone[posDelivery];
             if (cost >= costBound) continue;
             if (!placeSecond(solution, pickupPlaced, posDelivery, deliveryTemplate, maxRideTime).admitted) continue;
+            if (!admitsInRoute(solution, routeIndex, posPickup, posDelivery, pickupTemplate, deliveryTemplate,
+                               maxRideTime))
+                continue;
             candidates.push_back({routeIndex, posPickup, posDelivery, cost});
         }
     }

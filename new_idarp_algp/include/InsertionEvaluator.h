@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "LinkedRoutesTiming.h"
+#include "RouteDarpTiming.h"
 #include "Solution.h"
 
 // The elementary insertion machinery for one pair of stops (already fully
@@ -60,6 +61,16 @@ public:
     bool admitsTransfer(const Solution& solution, const InsertionResult& leg1, const RouteStop& pickup,
                         const RouteStop& stopBefore, const InsertionResult& leg2, const RouteStop& stopAfter,
                         const RouteStop& delivery, int ptTravelTime, int maxRideTime) const;
+
+    // Algorithms 2 and 3 of Gschwind & Drexl (2019) on the route seen as a
+    // standard DARP route (Solution::routeTiming): `first` at posFirst and
+    // `second` at posSecond (same convention as estimateLeg), bound by
+    // maxRideTime. Exact on a route linked to no other one, a necessary
+    // condition otherwise (see RouteDarpTiming). Unlike estimateLeg, it
+    // accounts for the maximum ride times of the requests already in the
+    // route and of the inserted one, by serving pickups later when needed.
+    bool admitsInRoute(const Solution& solution, int routeIndex, int posFirst, int posSecond, const RouteStop& first,
+                       const RouteStop& second, int maxRideTime) const;
 
     // For generateCandidates without a cost bound.
     static constexpr int kNoCostBound = std::numeric_limits<int>::max() / 4;

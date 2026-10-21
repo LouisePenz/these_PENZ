@@ -9,6 +9,7 @@
 #include "Transfer.h"
 
 class LinkedRoutesTiming;
+class RouteDarpTiming;
 
 // The state currently under construction/repair by the LNS: one Route per
 // vehicle, the Transfer links between routes for 2-vehicle PT requests, and
@@ -73,12 +74,17 @@ public:
     // insertion test (see LinkedRoutesTiming). Up to date as long as every
     // change to the routes goes through refreshTiming() afterwards.
     const LinkedRoutesTiming& timing(int route) const;
+    // The route seen as a route of the standard DARP, for the exact O(1)
+    // insertion test of Gschwind & Drexl (see RouteDarpTiming). Up to date
+    // under the same condition as timing().
+    const RouteDarpTiming& routeTiming(int route) const;
 
     // To call after any change to the routes or transfers: on every set of
     // linked routes containing one of `changedRoutes` -- as they are NOW, so a
     // removed transfer that split a set, or an added one that merged two, is
     // handled -- recomputes the loads, re-runs the exact STP forward and
-    // backward (ltwDarp/utwDarp), and rebuilds the timing data. Returns false
+    // backward (ltwDarp/utwDarp), and rebuilds the timing data (both
+    // LinkedRoutesTiming and RouteDarpTiming). Returns false
     // if one of those sets has no feasible schedule.
     bool refreshTiming(const std::vector<int>& changedRoutes);
 
@@ -163,4 +169,5 @@ private:
     // One entry per route, shared by all the routes of a set (and by every
     // copy of this Solution until one of them changes).
     std::vector<std::shared_ptr<const LinkedRoutesTiming>> timing_;
+    std::vector<std::shared_ptr<const RouteDarpTiming>> routeTiming_;  // one per route
 };
