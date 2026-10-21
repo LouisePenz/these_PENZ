@@ -48,6 +48,8 @@ ConfLNS::ConfLNS(const std::string& searchConfigFile, const std::string& instanc
     rateRRT_ = std::stof(searchConfig.at("rate_RRT"));
     updateIteration_ = std::stoi(searchConfig.at("update_iteration"));
     nbPtOptions_ = std::stoi(searchConfig.at("nb_pt_options"));
+    if (searchConfig.count("worst_removal_randomness"))
+        worstRemovalRandomness_ = std::stod(searchConfig.at("worst_removal_randomness"));
 
     std::map<std::string, std::string> instanceConfig = parseKeyValueFile(instanceConfigFile);
     waitingTime_ = std::stoi(instanceConfig.at("waiting_time"));

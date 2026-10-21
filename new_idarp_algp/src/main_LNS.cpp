@@ -13,6 +13,7 @@
 #include "LNS.h"
 #include "PartialLNS.h"
 #include "RandomRemoval.h"
+#include "WorstRemoval.h"
 #include "RandomRepair.h"
 #include "RegretRepair.h"
 #include "Repairer.h"
@@ -67,10 +68,11 @@ bool hasAllMandatoryOptions(int argc, char* argv[]) {
 
 // Fresh operator instances each time -- both PartialLNS and LNS own their own
 // list (unique_ptr), so the two stages can't share one set.
-std::vector<std::unique_ptr<Destroyer>> makeDestroyers() {
+std::vector<std::unique_ptr<Destroyer>> makeDestroyers(const ConfLNS& conf) {
     std::vector<std::unique_ptr<Destroyer>> destroyers;
     destroyers.push_back(std::make_unique<RandomRemoval>());
-    // TODO: related/worst/route/cluster/separateSelection removal, once built.
+    destroyers.push_back(std::make_unique<WorstRemoval>(conf.worstRemovalRandomness()));
+    // TODO: related/route/cluster/separateSelection removal, once built.
     return destroyers;
 }
 
@@ -139,7 +141,7 @@ int main(int argc, char* argv[]) {
     // NOTE: -sinit (loading a pre-built initial solution from file) isn't
     // wired in -- Solution has no file reader yet.
     TimePoint start = now();
-    PartialLNS partialLns(conf, makeDestroyers(), makeRepairersRandom());
+    PartialLNS partialLns(conf, makeDestroyers(conf), makeRepairersRandom());
     Solution sInit = partialLns.compute(instance);
     sInit.computeObjectiveFunction();
     bool check = hasFlag(argc, argv, "-check");
@@ -163,7 +165,7 @@ int main(int argc, char* argv[]) {
 
     // Stage 2: improve it, requiring every request to stay assigned.
     //std::cout << "Optimizing...\n";
-    LNS lns(conf, makeDestroyers(), makeRepairers());
+    LNS lns(conf, makeDestroyers(conf), makeRepairers());
     Solution best = lns.compute(sInit, conf.timeLimit()-secondsSince(start));
     best.computeObjectiveFunction();
     if (check) {

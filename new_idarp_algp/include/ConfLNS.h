@@ -40,6 +40,7 @@ public:
     int upperBoundRRT() const noexcept { return upperBoundRRT_; }
     int lowerBoundRRT() const noexcept { return lowerBoundRRT_; }
     int nbPtOptions() const noexcept { return nbPtOptions_; }
+    double worstRemovalRandomness() const noexcept { return worstRemovalRandomness_; }
 
 private:
     // --- Search parameters (searchConfigFile) ---
@@ -58,6 +59,9 @@ private:
     // 2-vehicle pattern, vehicle-side stops for the walk pattern (see
     // Instance::precomputeAccessOptions).
     int nbPtOptions_ = 0;
+    // Randomness p >= 1 of WorstRemoval (see there). Optional key, default 3
+    // (Ropke & Pisinger 2006).
+    double worstRemovalRandomness_ = 3.0;
 
     // --- Instance-related runtime parameters (instanceConfigFile) ---
     int timeLimit_ = 0;
