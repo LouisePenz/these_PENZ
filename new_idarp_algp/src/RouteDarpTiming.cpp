@@ -14,42 +14,31 @@ int chainDuration(const Route& route, const TravelTimeProvider& tt, int i, int j
         duration += route.stopAt(x).serviceTime + tt.driveTime(route.stopAt(x).pointId, route.stopAt(x + 1).pointId);
     return duration;
 }
-
-struct MaxLag {
-    int near;
-    int far;
-    int value;  // value(far) - value(near) <= value
-};
 }  // namespace
 
-RouteDarpTiming::RouteDarpTiming(const Solution& solution, int routeIndex) {
+RouteDarpTiming::Inputs RouteDarpTiming::inputsOf(const Solution& solution, int routeIndex) {
     const Route& route = solution.route(routeIndex);
     const Instance& instance = solution.instance();
     const TravelTimeProvider& tt = instance.travelTimes();
     const int n = route.size();
-    nbNodes_ = n + 2;
+    const int nbNodes = n + 2;
 
     // Node data and windows.
-    std::vector<int> lower(nbNodes_, 0), upper(nbNodes_, 0);
-    pointId_.assign(nbNodes_, route.depotPointId());
-    serviceTime_.assign(nbNodes_, 0);
-    upper[n + 1] = route.depotReturnDeadline();  // depot departure: [0; 0]
+    Inputs in;
+    in.pointId.assign(nbNodes, route.depotPointId());
+    in.serviceTime.assign(nbNodes, 0);
+    in.lower.assign(nbNodes, 0);
+    in.upper.assign(nbNodes, 0);
+    in.upper[n + 1] = route.depotReturnDeadline();  // depot departure: [0; 0]
     for (int i = 0; i < n; ++i) {
         const RouteStop& s = route.stopAt(i);
-        pointId_[i + 1] = s.pointId;
-        serviceTime_[i + 1] = s.serviceTime;
-        lower[i + 1] = s.ltwDarp;
-        upper[i + 1] = s.utwDarp;
-    }
-    std::vector<int> travel(nbNodes_ - 1);  // node m -> m + 1, service of m included
-    cumulative_.assign(nbNodes_, 0);
-    for (int m = 0; m + 1 < nbNodes_; ++m) {
-        travel[m] = serviceTime_[m] + tt.driveTime(pointId_[m], pointId_[m + 1]);
-        cumulative_[m + 1] = cumulative_[m] + travel[m];
+        in.pointId[i + 1] = s.pointId;
+        in.serviceTime[i + 1] = s.serviceTime;
+        in.lower[i + 1] = s.ltwDarp;
+        in.upper[i + 1] = s.utwDarp;
     }
 
     // One maximum-ride-time pair per request leg on this route (see the header).
-    std::vector<MaxLag> lags;
     auto findOnRoute = [&route](int requestId, StopRole role) {
         for (int i = 0; i < route.size(); ++i)
             if (route.stopAt(i).requestId == requestId && route.stopAt(i).role == role) return i;
@@ -65,25 +54,41 @@ RouteDarpTiming::RouteDarpTiming(const Solution& solution, int routeIndex) {
             int stopBeforeService = solution.route(t.routeBefore).stopAt(t.posStopBefore).serviceTime;
             if (s.role == StopRole::Pickup) {
                 int secondLeg = chainDuration(solution.route(t.routeAfter), tt, t.posStopAfter, t.posDelivery);
-                lags.push_back({t.posPickup + 1, t.posStopBefore + 1,
-                                request.maxRideTime() - stopBeforeService - t.ptTravelTime - secondLeg});
+                in.lags.push_back({t.posPickup + 1, t.posStopBefore + 1,
+                                   request.maxRideTime() - stopBeforeService - t.ptTravelTime - secondLeg});
             } else if (s.role == StopRole::StopAfter) {
                 int firstLeg = chainDuration(solution.route(t.routeBefore), tt, t.posPickup, t.posStopBefore);
-                lags.push_back({t.posStopAfter + 1, t.posDelivery + 1,
-                                request.maxRideTime() - firstLeg - stopBeforeService - t.ptTravelTime});
+                in.lags.push_back({t.posStopAfter + 1, t.posDelivery + 1,
+                                   request.maxRideTime() - firstLeg - stopBeforeService - t.ptTravelTime});
             }
         } else if (s.role == StopRole::Pickup) {
             int delivery = findOnRoute(s.requestId, StopRole::Delivery);
             if (delivery >= 0) {
-                lags.push_back({i + 1, delivery + 1, request.maxRideTime()});
+                in.lags.push_back({i + 1, delivery + 1, request.maxRideTime()});
             } else {
                 int stop = findOnRoute(s.requestId, StopRole::StopBefore);  // walk at delivery
-                lags.push_back({i + 1, stop + 1, request.walkAccess().maxRideTimeForStop(route.stopAt(stop).pointId)});
+                in.lags.push_back(
+                    {i + 1, stop + 1, request.walkAccess().maxRideTimeForStop(route.stopAt(stop).pointId)});
             }
         } else if (s.role == StopRole::StopAfter) {  // walk at pickup
             int delivery = findOnRoute(s.requestId, StopRole::Delivery);
-            lags.push_back({i + 1, delivery + 1, request.walkAccess().maxRideTimeForStop(s.pointId)});
+            in.lags.push_back({i + 1, delivery + 1, request.walkAccess().maxRideTimeForStop(s.pointId)});
         }
+    }
+    return in;
+}
+
+RouteDarpTiming::RouteDarpTiming(const TravelTimeProvider& tt, Inputs inputs) : inputs_(std::move(inputs)) {
+    nbNodes_ = static_cast<int>(inputs_.pointId.size());
+    const std::vector<int>& lower = inputs_.lower;
+    const std::vector<int>& upper = inputs_.upper;
+    const std::vector<MaxLag>& lags = inputs_.lags;
+
+    std::vector<int> travel(nbNodes_ - 1);  // node m -> m + 1, service of m included
+    cumulative_.assign(nbNodes_, 0);
+    for (int m = 0; m + 1 < nbNodes_; ++m) {
+        travel[m] = inputs_.serviceTime[m] + tt.driveTime(inputs_.pointId[m], inputs_.pointId[m + 1]);
+        cumulative_[m + 1] = cumulative_[m] + travel[m];
     }
 
     // Relaxations on this route alone (small): earliest from the lower
@@ -133,7 +138,7 @@ RouteDarpTiming::RouteDarpTiming(const Solution& solution, int routeIndex) {
     latestSchedule(latest_, -1, 0);
     for (int m = 0; m < nbNodes_; ++m) {
         if (earliest_[m] > latest_[m]) {
-            std::cerr << "[RouteDarpTiming] route " << routeIndex << " infeasible as a DARP route -- windows out of date?\n";
+            std::cerr << "[RouteDarpTiming] route infeasible as a DARP route -- windows out of date?\n";
             break;
         }
     }

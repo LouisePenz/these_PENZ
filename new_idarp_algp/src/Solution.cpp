@@ -70,7 +70,12 @@ bool Solution::refreshTiming(const std::vector<int>& changedRoutes) {
         auto timing = std::make_shared<const LinkedRoutesTiming>(*this, linked);
         for (int r : linked) {
             timing_[r] = timing;
-            routeTiming_[r] = std::make_shared<const RouteDarpTiming>(*this, r);
+            // The cubic preprocessing only when its inputs changed: a change
+            // elsewhere in the set often leaves this route's windows and ride
+            // time pairs exactly as they were.
+            RouteDarpTiming::Inputs inputs = RouteDarpTiming::inputsOf(*this, r);
+            if (!routeTiming_[r] || !(routeTiming_[r]->inputs() == inputs))
+                routeTiming_[r] = std::make_shared<const RouteDarpTiming>(instance_->travelTimes(), std::move(inputs));
         }
     }
     return feasible;

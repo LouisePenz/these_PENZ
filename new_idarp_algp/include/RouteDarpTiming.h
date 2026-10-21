@@ -4,6 +4,7 @@
 #include <vector>
 
 class Solution;
+class TravelTimeProvider;
 
 // One route seen as a route of the standard DARP (no transfer), for the exact
 // constant-time insertion test of Gschwind & Drexl (2019), "Adaptive Large
@@ -32,14 +33,40 @@ class Solution;
 // set of linked routes changes (see Solution::refreshTiming).
 class RouteDarpTiming {
 public:
-    // The route's ltwDarp/utwDarp must be up to date.
-    RouteDarpTiming(const Solution& solution, int routeIndex);
+    // One maximum ride time: value(far) - value(near) <= value.
+    struct MaxLag {
+        int near;
+        int far;
+        int value;
+        bool operator==(const MaxLag& o) const { return near == o.near && far == o.far && value == o.value; }
+    };
+
+    // Everything the preprocessing depends on, per node: point, service
+    // time, window [lower; upper]; and the route's maximum ride time pairs.
+    // Cheap to build (linear in the route), unlike the preprocessing (cubic):
+    // Solution::refreshTiming only rebuilds a RouteDarpTiming whose inputs changed.
+    struct Inputs {
+        std::vector<int> pointId;
+        std::vector<int> serviceTime;
+        std::vector<int> lower;
+        std::vector<int> upper;
+        std::vector<MaxLag> lags;
+        bool operator==(const Inputs& o) const {
+            return pointId == o.pointId && serviceTime == o.serviceTime && lower == o.lower && upper == o.upper &&
+                   lags == o.lags;
+        }
+    };
+    // The inputs of route `routeIndex`, whose ltwDarp/utwDarp must be up to date.
+    static Inputs inputsOf(const Solution& solution, int routeIndex);
+
+    RouteDarpTiming(const TravelTimeProvider& travelTimes, Inputs inputs);
+    const Inputs& inputs() const noexcept { return inputs_; }
 
     int nbNodes() const noexcept { return nbNodes_; }
     int earliest(int node) const { return earliest_[node]; }  // tau_i: as-early-as-possible schedule
     int latest(int node) const { return latest_[node]; }      // tau-bar_i: latest feasible service time
-    int serviceTime(int node) const { return serviceTime_[node]; }
-    int pointId(int node) const { return pointId_[node]; }
+    int serviceTime(int node) const { return inputs_.serviceTime[node]; }
+    int pointId(int node) const { return inputs_.pointId[node]; }
     // Gamma_ab: cumulative travel (service included) along the route from node a to node b (a <= b).
     int cumulativeTravel(int a, int b) const { return cumulative_[b] - cumulative_[a]; }
 
@@ -56,11 +83,10 @@ public:
     static constexpr int kInfeasible = std::numeric_limits<int>::min() / 4;
 
 private:
+    Inputs inputs_;
     int nbNodes_ = 0;
     std::vector<int> earliest_;
     std::vector<int> latest_;
-    std::vector<int> serviceTime_;
-    std::vector<int> pointId_;
     std::vector<int> cumulative_;
     std::vector<int> latestAtEarliest_;  // nbNodes_ x nbNodes_: [k][i] = tau-bar_i(tau_k)
 };
