@@ -41,8 +41,13 @@ public:
     // Returns up to maxResults feasible ways to insert `requestId`, sorted by
     // total cost ascending. Does not mutate `solution` -- see apply() to
     // actually commit a chosen candidate.
-    std::vector<RequestInsertionCandidate> findInsertions(const Solution& solution, int requestId,
-                                                            int maxResults) const;
+    //
+    // distinctRoutes: the results must use pairwise different routes -- the
+    // pair (first leg's route, second leg's route), a direct or walk candidate
+    // counting as (its route, none). E.g. the best insertion and the best one
+    // in another route, as the regret heuristic needs (Ropke & Pisinger 2006).
+    std::vector<RequestInsertionCandidate> findInsertions(const Solution& solution, int requestId, int maxResults,
+                                                            bool distinctRoutes = false) const;
 
     // Commits a candidate previously returned by findInsertions(): inserts
     // its stop(s) into the real solution, adds a Transfer if needed, marks
@@ -64,10 +69,12 @@ private:
 
     // Checks `candidates` with verifyCandidate in candidateLess order until
     // maxResults feasible ones are found, and returns them in that order.
-    // Consumes `candidates` (left in an unspecified state).
+    // With distinctRoutes, a candidate on the same routes as one already
+    // found is skipped without being checked. Consumes `candidates` (left in
+    // an unspecified state).
     std::vector<RequestInsertionCandidate> verifyInOrder(const Solution& solution,
                                                           std::vector<RequestInsertionCandidate>& candidates,
-                                                          int maxResults) const;
+                                                          int maxResults, bool distinctRoutes) const;
 
     // Exact check of any candidate: its stop(s), and Transfer if any, are
     // inserted in a copy of `solution`, then capacity and the STP of the

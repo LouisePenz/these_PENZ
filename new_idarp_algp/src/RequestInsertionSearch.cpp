@@ -64,6 +64,24 @@ bool candidateLess(const RequestInsertionCandidate& a, const RequestInsertionCan
     return key(a) < key(b);
 }
 
+// The routes a candidate uses: (first leg's route, second leg's route or -1).
+std::pair<int, int> routesOf(const RequestInsertionCandidate& c) {
+    return {c.leg1.routeIndex, c.isTransfer ? c.leg2.routeIndex : -1};
+}
+
+// Appends `c` to `kept` unless kept is full or, with distinctRoutes, already
+// holds a candidate on the same routes.
+bool keepIfNew(std::vector<RequestInsertionCandidate>& kept, const RequestInsertionCandidate& c, int maxResults,
+               bool distinctRoutes) {
+    if (static_cast<int>(kept.size()) >= maxResults) return false;
+    if (distinctRoutes && std::any_of(kept.begin(), kept.end(), [&c](const RequestInsertionCandidate& k) {
+            return routesOf(k) == routesOf(c);
+        }))
+        return false;
+    kept.push_back(c);
+    return true;
+}
+
 // Inserts the stop(s) of `candidate` (and its Transfer) into `solution`,
 // without refreshing anything. Returns the routes changed.
 std::vector<int> insertCandidate(Solution& solution, const RequestInsertionCandidate& candidate) {
@@ -200,7 +218,8 @@ bool RequestInsertionSearch::verifyCandidate(const Solution& solution,
 }
 
 std::vector<RequestInsertionCandidate> RequestInsertionSearch::findInsertions(const Solution& solution,
-                                                                                int requestId, int maxResults) const {
+                                                                                int requestId, int maxResults,
+                                                                                bool distinctRoutes) const {
     // Reused from one call to the next: no reallocation once it has reached its largest size.
     thread_local std::vector<RequestInsertionCandidate> candidates;
 
@@ -208,26 +227,32 @@ std::vector<RequestInsertionCandidate> RequestInsertionSearch::findInsertions(co
     candidates.clear();
     collectDirect(solution, requestId, candidates);
     collectWalk(solution, requestId, candidates);
-    std::vector<RequestInsertionCandidate> pool = verifyInOrder(solution, candidates, maxResults);
+    std::vector<RequestInsertionCandidate> pool = verifyInOrder(solution, candidates, maxResults, distinctRoutes);
 
     // 2. 2-vehicle candidates (by far the most numerous): only those that can
     // still make it into the result, i.e. strictly cheaper than the worst of
     // the maxResults found in step 1 -- at equal cost a 2-vehicle candidate
-    // ranks after direct and walk ones (candidateLess).
+    // ranks after direct and walk ones (candidateLess). With distinctRoutes
+    // too: a 2-vehicle candidate never shares its routes with a direct or
+    // walk one, so it can only enter the result by being cheaper than the
+    // worst of step 1 as well.
     int costBound = (static_cast<int>(pool.size()) == maxResults) ? pool.back().cost
                                                                   : InsertionEvaluator::kNoCostBound;
     candidates.clear();
     collectTransfer(solution, requestId, costBound, candidates);
-    for (const auto& c : verifyInOrder(solution, candidates, maxResults)) pool.push_back(c);
+    for (const auto& c : verifyInOrder(solution, candidates, maxResults, distinctRoutes)) pool.push_back(c);
 
-    // 3. The maxResults best of both.
+    // 3. The maxResults best of both (on distinct routes if asked: the best
+    // ones of each step on distinct routes contain those of the union).
     std::sort(pool.begin(), pool.end(), candidateLess);
-    if (static_cast<int>(pool.size()) > maxResults) pool.resize(maxResults);
-    return pool;
+    std::vector<RequestInsertionCandidate> result;
+    for (const auto& c : pool) keepIfNew(result, c, maxResults, distinctRoutes);
+    return result;
 }
 
 std::vector<RequestInsertionCandidate> RequestInsertionSearch::verifyInOrder(
-    const Solution& solution, std::vector<RequestInsertionCandidate>& candidates, int maxResults) const {
+    const Solution& solution, std::vector<RequestInsertionCandidate>& candidates, int maxResults,
+    bool distinctRoutes) const {
     // A heap rather than a full sort: only the candidates actually checked
     // are ordered, in exactly the order a sort would give (candidateLess is a
     // strict total order). std heaps put the largest on top, hence the swap.
@@ -239,7 +264,11 @@ std::vector<RequestInsertionCandidate> RequestInsertionSearch::verifyInOrder(
     std::vector<RequestInsertionCandidate> feasible;
     while (!candidates.empty() && static_cast<int>(feasible.size()) < maxResults) {
         std::pop_heap(candidates.begin(), candidates.end(), worse);  // cheapest moved to the back
-        if (verifyCandidate(solution, candidates.back())) feasible.push_back(candidates.back());
+        const RequestInsertionCandidate& c = candidates.back();
+        bool sameRoutesAsFound = distinctRoutes && std::any_of(feasible.begin(), feasible.end(), [&c](const auto& f) {
+                                     return routesOf(f) == routesOf(c);
+                                 });
+        if (!sameRoutesAsFound && verifyCandidate(solution, c)) feasible.push_back(c);
         candidates.pop_back();
     }
     return feasible;

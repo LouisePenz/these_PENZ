@@ -1,7 +1,6 @@
 #include "GreedyRepair.h"
 
 #include "Solution.h"
-#include <iostream>
 
 bool GreedyRepair::apply(Solution& solution, bool allowPartial) {
     while (true) {
@@ -14,7 +13,13 @@ bool GreedyRepair::apply(Solution& solution, bool allowPartial) {
 
         for (int requestId : pending) {
             auto candidates = search_.findInsertions(solution, requestId, 1);
-            if (candidates.empty()) continue;
+            if (candidates.empty()) {
+                // Inserting other requests only adds constraints (drive times
+                // satisfy the triangle inequality): this one will never be
+                // insertable in this repair, so a full repair is already lost.
+                if (!allowPartial) return false;
+                continue;
+            }
             if (!foundAny || candidates[0].cost < bestCost) {
                 foundAny = true;
                 bestCost = candidates[0].cost;

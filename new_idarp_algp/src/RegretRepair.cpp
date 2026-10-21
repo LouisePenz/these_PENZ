@@ -3,7 +3,6 @@
 #include <limits>
 
 #include "Solution.h"
-#include <iostream>
 
 bool RegretRepair::apply(Solution& solution, bool allowPartial) {
     while (true) {
@@ -15,13 +14,22 @@ bool RegretRepair::apply(Solution& solution, bool allowPartial) {
         RequestInsertionCandidate bestCandidate;
 
         for (int requestId : pending) {
-            auto candidates = search_.findInsertions(solution, requestId, 2);
-            if (candidates.empty()) continue;
-            foundAny = true;
+            // Best insertion, and best insertion on other routes.
+            auto candidates = search_.findInsertions(solution, requestId, 2, /*distinctRoutes=*/true);
+            if (candidates.empty()) {
+                // Inserting other requests only adds constraints (drive times
+                // satisfy the triangle inequality): this one will never be
+                // insertable in this repair, so a full repair is already lost.
+                if (!allowPartial) return false;
+                continue;
+            }
 
             long long regret = (candidates.size() >= 2) ? static_cast<long long>(candidates[1].cost) - candidates[0].cost
                                                           : std::numeric_limits<long long>::max();
-            if (regret > bestRegret) {
+            // Highest regret; ties broken by the cheapest best insertion, then
+            // by the order of unassignedRequests().
+            if (!foundAny || regret > bestRegret || (regret == bestRegret && candidates[0].cost < bestCandidate.cost)) {
+                foundAny = true;
                 bestRegret = regret;
                 bestCandidate = candidates[0];
             }
