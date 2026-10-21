@@ -13,6 +13,7 @@
 #include "LNS.h"
 #include "PartialLNS.h"
 #include "RandomRemoval.h"
+#include "RelatedRemoval.h"
 #include "WorstRemoval.h"
 #include "RandomRepair.h"
 #include "RegretRepair.h"
@@ -72,7 +73,11 @@ std::vector<std::unique_ptr<Destroyer>> makeDestroyers(const ConfLNS& conf) {
     std::vector<std::unique_ptr<Destroyer>> destroyers;
     destroyers.push_back(std::make_unique<RandomRemoval>());
     destroyers.push_back(std::make_unique<WorstRemoval>(conf.worstRemovalRandomness()));
-    // TODO: related/route/cluster/separateSelection removal, once built.
+    destroyers.push_back(std::make_unique<RelatedRemoval>(RelatedRemoval::Measure::PickupAndDelivery,
+                                                          conf.relatedRemovalRandomness()));
+    destroyers.push_back(std::make_unique<RelatedRemoval>(RelatedRemoval::Measure::AnyEnds,
+                                                          conf.relatedRemovalRandomness()));
+    // TODO: route/cluster removal, once built.
     return destroyers;
 }
 

@@ -41,6 +41,7 @@ public:
     int lowerBoundRRT() const noexcept { return lowerBoundRRT_; }
     int nbPtOptions() const noexcept { return nbPtOptions_; }
     double worstRemovalRandomness() const noexcept { return worstRemovalRandomness_; }
+    double relatedRemovalRandomness() const noexcept { return relatedRemovalRandomness_; }
 
 private:
     // --- Search parameters (searchConfigFile) ---
@@ -62,6 +63,9 @@ private:
     // Randomness p >= 1 of WorstRemoval (see there). Optional key, default 3
     // (Ropke & Pisinger 2006).
     double worstRemovalRandomness_ = 3.0;
+    // Randomness p >= 1 of RelatedRemoval, both measures (see there). Optional
+    // key, default 6 (Ropke & Pisinger 2006).
+    double relatedRemovalRandomness_ = 6.0;
 
     // --- Instance-related runtime parameters (instanceConfigFile) ---
     int timeLimit_ = 0;
