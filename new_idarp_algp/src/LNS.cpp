@@ -34,7 +34,7 @@ Solution LNS::compute(const Solution& sInit, int timeLimit) {
         timeLimit = conf_->timeLimit();
 
     TimePoint start = now();
-    while (secondsSince(start) < timeLimit) {
+    while (secondsSince(start) < timeLimit && iteration_ < conf_->iterationLimit()) {
         Solution trial = current;  // cheap: value types, no manual undo needed on rejection
 
         int nbToRemove = removeMin + (removeMax > removeMin ? rand() % (removeMax - removeMin + 1) : 0);

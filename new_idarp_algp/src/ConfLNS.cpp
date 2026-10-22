@@ -60,11 +60,12 @@ ConfLNS::ConfLNS(const std::string& searchConfigFile, const std::string& instanc
     minimumTimeInTransit_ = std::stoi(instanceConfig.at("minimum_time_in_transport_public"));
     walkThreshold_ = std::stoi(instanceConfig.at("threshold_to_walk"));
     timeLimit_ = std::stoi(instanceConfig.at("time_limit"));
+    iterationLimit_ = std::stoi(instanceConfig.at("iteration_limit"));
 }
 
 std::string ConfLNS::toString() const {
     std::string s = " The LNS is executed until " + std::to_string(timeLimit_);
-    s += " seconds.\n";
+    s += " seconds or " + std::to_string(iterationLimit_) + " iterations.\n";
     s += "At each iteration, between " + std::to_string(percentRequestsRemovedMin_);
     s += " and " + std::to_string(percentRequestsRemovedMax_) + "% of requests are removed.\n";
     return s;

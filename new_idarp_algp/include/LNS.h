@@ -30,7 +30,8 @@ public:
         std::vector<std::unique_ptr<Repairer>> repairers);
 
     // Runs the search starting from sInit (copied -- sInit itself is left
-    // untouched) until conf.timeLimit() seconds have elapsed. Returns the
+    // untouched) until timeLimit seconds (conf.timeLimit() if -1) have
+    // elapsed or conf.iterationLimit() iterations are done. Returns the
     // best solution found; if sInit already has unassigned requests, they
     // stay unassigned throughout (this class never places or removes a
     // request that repair itself doesn't touch).

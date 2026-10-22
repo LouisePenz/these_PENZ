@@ -28,6 +28,7 @@ public:
     std::string toString() const;
 
     int timeLimit() const noexcept { return timeLimit_; }
+    int iterationLimit() const noexcept { return iterationLimit_; }
     int percentRequestsRemovedMin() const noexcept { return percentRequestsRemovedMin_; }
     int percentRequestsRemovedMax() const noexcept { return percentRequestsRemovedMax_; }
     int walkThreshold() const noexcept { return walkThreshold_; }
@@ -75,6 +76,8 @@ private:
 
     // --- Instance-related runtime parameters (instanceConfigFile) ---
     int timeLimit_ = 0;
+    // The LNS also stops after this many iterations (see LNS::compute).
+    int iterationLimit_ = 0;
     int walkThreshold_ = 0;
     int minimumTimeInTransit_ = 0;
     int waitingTime_ = 0;
