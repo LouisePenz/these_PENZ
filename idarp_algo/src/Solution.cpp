@@ -1,6 +1,7 @@
 #include "Solution.h"
 
 #include <algorithm>
+#include <fstream>
 #include <iostream>
 #include <unordered_set>
 #include <limits>
@@ -497,6 +498,20 @@ void Solution::write(std::ostream& out) const {
         }
         out << "\n";
     }
+}
+
+bool Solution::writeFile(const std::string& path, const std::vector<std::string>& header) {
+    std::vector<int> allRoutes(nbRoutes());
+    std::iota(allRoutes.begin(), allRoutes.end(), 0);
+    refreshTiming(allRoutes);
+    std::ofstream file(path);
+    if (!file.is_open()) {
+        std::cerr << "Cannot write the solution to " << path << "\n";
+        return false;
+    }
+    for (const std::string& line : header) file << line << "\n";
+    write(file);
+    return true;
 }
 
 bool Solution::checkConsistency() const {

@@ -1,7 +1,6 @@
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
-#include <numeric>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -231,18 +230,11 @@ int main(int argc, char* argv[]) {
     }*/
 
     if (getOptionValue(argc, argv, "-sol") != nullptr) {
-        // The schedule written is the earliest one: up to date whichever stage `best` comes from.
-        std::vector<int> allRoutes(best.nbRoutes());
-        std::iota(allRoutes.begin(), allRoutes.end(), 0);
-        best.refreshTiming(allRoutes);
-        std::ofstream solutionFile(getOptionValue(argc, argv, "-sol"));
-        solutionFile << "instance " << getOptionValue(argc, argv, "-p") << "\n";
-        if (getOptionValue(argc, argv, "-tram") != nullptr)
-            solutionFile << "pt tram " << getOptionValue(argc, argv, "-tram") << "\n";
-        else
-            solutionFile << "pt matrix " << getOptionValue(argc, argv, "-pt") << "\n";
-        solutionFile << "seed " << seed << "\nobjective " << best.objectiveFunction() << "\n";
-        best.write(solutionFile);
+        const char* tram = getOptionValue(argc, argv, "-tram");
+        best.writeFile(getOptionValue(argc, argv, "-sol"),
+                       {std::string("instance ") + getOptionValue(argc, argv, "-p"),
+                        tram ? std::string("pt tram ") + tram : std::string("pt matrix ") + getOptionValue(argc, argv, "-pt"),
+                        "seed " + std::to_string(seed), "objective " + std::to_string(best.objectiveFunction())});
     }
 
     std::ofstream objectiveFile("objective.txt");

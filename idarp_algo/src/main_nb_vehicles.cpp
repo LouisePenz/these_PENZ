@@ -34,6 +34,11 @@ void printHelp() {
     std::cout << "  -w \"file of the walk time\"                                | Mandatory |\n";
     std::cout << "  -f \"folder of instance/drive time/ public transport time\" | Optional  | Default \"./\"\n";
     std::cout << "  -res \"file where to write the result\"                     | Optional  | Default do not write\n";
+    std::cout << "  -sol \"file\"                                               | Optional  | Writes the complete solution\n";
+    std::cout << "                                                            |           | with the fewest vehicles\n";
+    std::cout << "                                                            |           | (format of Solution::write)\n";
+    std::cout << "  -s \"random seed\"                                          | Optional  | Default current time\n";
+    std::cout << "  -t \"time limit in seconds\"                                | Optional  | Default 300\n";
 }
 
 bool hasFlag(int argc, char* argv[], const std::string& flag) {
@@ -86,7 +91,9 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    srand(static_cast<unsigned int>(time(nullptr)));
+    unsigned int seed = static_cast<unsigned int>(time(nullptr));
+    if (getOptionValue(argc, argv, "-s") != nullptr) seed = static_cast<unsigned int>(std::stoul(getOptionValue(argc, argv, "-s")));
+    srand(seed);
 
     std::string instanceFolder = "./";
     if (getOptionValue(argc, argv, "-f") != nullptr) {
@@ -110,15 +117,30 @@ int main(int argc, char* argv[]) {
     instance.precomputeAccessOptions(conf.nbPtOptions());
     instance.setNbVehicles(instance.nbRequests() - 1);
 
-    int timeLimit = 10*60;
+    int timeLimit = 5*60;
+    if (getOptionValue(argc, argv, "-t") != nullptr) timeLimit = std::stoi(getOptionValue(argc, argv, "-t"));
     TimePoint start = now();
+    Solution best(instance);  // the complete solution with the fewest vehicles found so far
+    bool found = false;
     while (secondsSince(start) < timeLimit) {
         PartialLNS partialLns(conf, makeDestroyers(), makeRepairers());
         Solution sInit = partialLns.compute(instance, 50, timeLimit - secondsSince(start));
         if(sInit.unassignedRequests().size() == 0){
             nbVehicles = sInit.nbUsedRoutes();
             instance.setNbVehicles(nbVehicles - 1);
+            best = sInit;
+            found = true;
         }
+    }
+
+    if (getOptionValue(argc, argv, "-sol") != nullptr && found) {
+        const char* tram = getOptionValue(argc, argv, "-tram");
+        best.computeObjectiveFunction();
+        best.writeFile(getOptionValue(argc, argv, "-sol"),
+                       {std::string("instance ") + getOptionValue(argc, argv, "-p"),
+                        tram ? std::string("pt tram ") + tram : std::string("pt matrix ") + getOptionValue(argc, argv, "-pt"),
+                        "seed " + std::to_string(seed), "objective " + std::to_string(best.objectiveFunction()),
+                        "vehicles " + std::to_string(nbVehicles)});
     }
 
     if (getOptionValue(argc, argv, "-res") != nullptr) {

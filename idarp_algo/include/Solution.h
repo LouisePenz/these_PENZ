@@ -2,6 +2,7 @@
 
 #include <iosfwd>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -108,6 +109,9 @@ public:
     // ptDep / ptArr: the tram run with the timetable (-tram); with the PT matrix, the ride ending
     // or starting at the vehicle's stop (average waiting included in its duration).
     void write(std::ostream& out) const;
+    // Writes `header` (one "key value" line each) then write() into `path`, after refreshTiming on
+    // every route so that the schedule written is up to date. Returns false if the file can't be opened.
+    bool writeFile(const std::string& path, const std::vector<std::string>& header);
 
     // Validates internal invariants that a manual pointer/index bug would
     // silently violate: Transfer entries reference the right roles/requests
