@@ -1,14 +1,18 @@
 #!/bin/bash
-# Instances Le Havre périurbain / rural (../instances/lehavre_rural), mode horaires des trams (-tram),
-# pour chaque jour de référence :
-#   1. main_nb_vehicles : nombre minimal de véhicules, et la solution correspondante
-#      -> ../results/lehavre_rural_idarp/<jour>/nb_vehicules/i<instance>.txt
+# Instances Le Havre périurbain / rural, mode horaires des trams (-tram), pour chaque jour de référence.
+# Deux jeux d'instances (variable JEU) :
+#   JEU=test  (défaut) : ../instances/lehavre_rural, résultats comme ci-dessous ;
+#   JEU=irace          : ../instances/lehavre_rural_irace (réglage des paramètres), résultats dans
+#                        ../results/lehavre_rural_irace et ../results/lehavre_sol_init_irace.
+#   1. main_nb_vehicles : nombre minimal de véhicules et la solution correspondante (ligne "vehicles")
 #      -> ../results/lehavre_sol_init/<jour>/sol_init_<instance>.txt
-#   2. main_LNS avec ce nombre de véhicules (+1, voir -v) : la meilleure solution
+#   2. main_LNS avec ce nombre de véhicules (+1 ; -v lit la ligne "vehicles" de la solution initiale) :
+#      la meilleure solution
 #      -> ../results/lehavre_rural_idarp/<jour>/sol_<instance>.txt
 # Les résultats déjà présents sont sautés. Usage : ./run_tests.sh [phase : 1, 2 ou tout (défaut)]
 # Chaque réglage ci-dessous peut être remplacé par une variable d'environnement, par exemple :
 #   DAYS=lundi_scolaire INSTANCES="30_30_0 30_30_1" NB_JOBS=8 ./run_tests.sh 1
+#   JEU=irace NB_JOBS=6 ./run_tests.sh 1     (nombre de véhicules du jeu d'irace, utilisé par target-runner)
 
 # Nombre de processus en parallèle
 NB_JOBS=${NB_JOBS:-3}
@@ -19,9 +23,15 @@ CONFIG=${CONFIG:-config.txt}
 CONFIG_INSTANCE=${CONFIG_INSTANCE:-config_instance.txt}
 
 PHASE=${1:-tout}
-INST_DIR=${INST_DIR:-"../instances/lehavre_rural/"}
-RES_DIR=${RES_DIR:-"../results/lehavre_rural_idarp"}
-SOL_INIT_DIR=${SOL_INIT_DIR:-"../results/lehavre_sol_init"}
+JEU=${JEU:-test}
+case "$JEU" in
+    test)  SUFFIX_INST="";       DEFAULT_RES="../results/lehavre_rural_idarp"; DEFAULT_INIT="../results/lehavre_sol_init" ;;
+    irace) SUFFIX_INST="_irace"; DEFAULT_RES="../results/lehavre_rural_irace"; DEFAULT_INIT="../results/lehavre_sol_init_irace" ;;
+    *) echo "JEU inconnu : $JEU (test ou irace)" >&2; exit 1 ;;
+esac
+INST_DIR=${INST_DIR:-"../instances/lehavre_rural${SUFFIX_INST}/"}
+RES_DIR=${RES_DIR:-$DEFAULT_RES}
+SOL_INIT_DIR=${SOL_INIT_DIR:-$DEFAULT_INIT}
 DAYS=${DAYS:-"lundi_scolaire lundi_hors_scolaire samedi_scolaire"}
 INSTANCES=${INSTANCES:-$(ls "$INST_DIR" | sed -n 's/^i\(.*\)\.txt$/\1/p' | sort -V)}
 
@@ -37,12 +47,12 @@ CONFIG_INSTANCE=$(realpath "$CONFIG_INSTANCE")
 run_nb_vehicles() {
     day=$1
     inst=$2
-    res="$RES_DIR/$day/nb_vehicules/i${inst}.txt"
+    res="$SOL_INIT_DIR/$day/sol_init_${inst}.txt"
     if [ -f "$res" ]; then
         echo "[SKIP] $res existe déjà"
         return 0
     fi
-    mkdir -p "$RES_DIR/$day/nb_vehicules" "$SOL_INIT_DIR/$day"
+    mkdir -p "$SOL_INIT_DIR/$day"
     echo "[RUN ] nb véhicules $day $inst"
     "$BIN_DIR/main_nb_vehicles" -f "$INST_DIR" \
         -p "i${inst}.txt" \
@@ -52,15 +62,14 @@ run_nb_vehicles() {
         -c "$CONFIG" \
         -ci "$CONFIG_INSTANCE" \
         -s "$SEED" -t "$NB_VEHICLES_TIME" \
-        -sol "$SOL_INIT_DIR/$day/sol_init_${inst}.txt" \
-        -res "$res"
+        -sol "$res"
 }
 
 # Phase 2 : LNS avec le nombre de véhicules de la phase 1
 run_lns() {
     day=$1
     inst=$2
-    nbv="$RES_DIR/$day/nb_vehicules/i${inst}.txt"
+    nbv="$SOL_INIT_DIR/$day/sol_init_${inst}.txt"
     res="$RES_DIR/$day/sol_${inst}.txt"
     if [ -f "$res" ]; then
         echo "[SKIP] $res existe déjà"

@@ -1,9 +1,17 @@
 #!/bin/bash
+# Appelé par irace : target-runner <id config> <id instance> <graine> <instance> <paramètres...>
+# Instance : "<jour>/i30_30_<k>.txt" (instances.txt, préfixé par irace d'un dossier sans importance) :
+# instance du jeu d'apprentissage ../../instances/lehavre_rural_irace, en mode horaires des trams du jour
+# (tram_runs_<jour>.txt), avec le nombre de véhicules de la solution initiale de main_nb_vehicles
+# (JEU=irace ./run_tests.sh 1 : ../../results/lehavre_sol_init_irace/<jour>/sol_init_<instance>.txt).
+# Affiche le coût (objective.txt de main_LNS).
 
 CONFIG_ID=$1
 INSTANCE_ID=$2
 SEED=$3
-INSTANCE=$(basename "$4")
+INSTANCE_PATH=$4
+INSTANCE=$(basename "$INSTANCE_PATH")
+DAY=$(basename "$(dirname "$INSTANCE_PATH")")
 shift 4
 
 pourcent_nb_requests_removed_min=$1
@@ -22,15 +30,25 @@ fi
 
 lower_bound_RRT=$(awk -v u="$upper_bound_RRT" -v r="$ratio_lower_RRT" 'BEGIN { printf "%d", u * r }')
 
-# Chemins absolus, résolus AVANT de changer de dossier
-BIN=$(realpath ../bin/main_LNS)
-INST_DIR=$(realpath ../../instances/lehavre/)
-CONF_INST=$(realpath ../config_instance.txt)
-RES_DIR=$(realpath ../../results/lehavre/min_nb_vehicules/wIDARP/)
+# Chemins absolus, à partir de l'emplacement de ce script (indépendants du dossier d'exécution)
+HERE=$(dirname "$(realpath "$0")")
+BIN="$HERE/../bin/main_LNS"
+INST_DIR=$(realpath "$HERE/../../instances/lehavre_rural_irace")
+# config_instance (temps limite de main_LNS, etc.) : IRACE_CONFIG_INSTANCE pour en utiliser un autre
+CONF_INST=$(realpath "${IRACE_CONFIG_INSTANCE:-$HERE/../config_instance.txt}")
+NB_VEHICLES="$(realpath -m "$HERE/../../results/lehavre_sol_init_irace/$DAY")/sol_init_${INSTANCE#i}"
+TRAM="tram_runs_${DAY}.txt"
 
-# Dossier de travail unique pour cet appel
+for f in "$INST_DIR/$INSTANCE" "$INST_DIR/$TRAM" "$NB_VEHICLES"; do
+    if [ ! -s "$f" ]; then
+        echo "Erreur: $f absent (instance $INSTANCE_PATH ; nombre de véhicules : lancer d'abord JEU=irace ./run_tests.sh 1)" >&2
+        exit 1
+    fi
+done
+
+# Dossier de travail unique pour cet appel (main_LNS y écrit objective.txt)
 RUN_DIR="run_${CONFIG_ID}_${INSTANCE_ID}"
-mkdir -p "$RUN_DIR" "$RES_DIR"
+mkdir -p "$RUN_DIR"
 cd "$RUN_DIR" || exit 1
 
 cat > config.txt <<EOF
@@ -44,9 +62,7 @@ update_iteration: $update_iteration
 nb_pt_options: $nb_pt_options
 EOF
 
-NUMBER=$(echo "$INSTANCE" | sed 's/^i30_30_\(.*\)\.txt$/\1/')
-DATA="d30_30_${NUMBER}.txt"
-WALK="w30_30_${NUMBER}.txt"
+NUMBER=$(echo "$INSTANCE" | sed 's/^i\(.*\)\.txt$/\1/')
 
 rm -f objective.txt
 
@@ -55,16 +71,15 @@ rm -f objective.txt
     -p "$INSTANCE" \
     -c config.txt \
     -ci "$CONF_INST" \
-    -d "$DATA" \
-    -w "$WALK" \
-    -pt public_transport_time.txt \
-    -v "$RES_DIR/$INSTANCE" \
+    -d "d${NUMBER}.txt" \
+    -w "w${NUMBER}.txt" \
+    -tram "$TRAM" \
+    -v "$NB_VEHICLES" \
     -s "$SEED" \
     > solver.log 2>&1
-# ^ "-s" est un exemple : remplacez par la vraie option de graine de main_LNS
 
 if [ ! -s objective.txt ]; then
-    echo "Erreur: objective.txt absent ou vide (config $CONFIG_ID, instance $INSTANCE_ID), voir $PWD/solver.log" >&2
+    echo "Erreur: objective.txt absent ou vide (config $CONFIG_ID, instance $INSTANCE_PATH), voir $PWD/solver.log" >&2
     exit 1
 fi
 

@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -36,7 +37,9 @@ void printHelp() {
     std::cout << "                                                            |           | with their times (one tram\n";
     std::cout << "                                                            |           | per trip, no set partitioning)\n";
     std::cout << "  -w \"file of the walk time\"                                | Mandatory |\n";
-    std::cout << "  -v \"file with the minimum number of vehicles\"             | Mandatory | (main_nb_vehicles -res); uses it + 1\n";
+    std::cout << "  -v \"file with the minimum number of vehicles\"             | Mandatory | main_nb_vehicles -res, or its\n";
+    std::cout << "                                                            |           | -sol solution (\"vehicles\" line);\n";
+    std::cout << "                                                            |           | uses it + 1\n";
     std::cout << "  -f \"folder of instance/drive time/ public transport time\" | Optional  | Default \"./\"\n";
     std::cout << "  -s \"random seed\"                                          | Optional  | Default current time\n";
     std::cout << "  -sp \"file\"                                                | Optional  | One line per set partitioning\n";
@@ -67,6 +70,26 @@ const char* getOptionValue(int argc, char* argv[], const std::string& flag) {
         }
     }
     return nullptr;
+}
+
+// Number of vehicles in the -v file: either the file holds just that number
+// (main_nb_vehicles -res), or it is a solution written by main_nb_vehicles -sol
+// and the number is on its "vehicles <n>" line. 0 if neither.
+int readNbVehicles(const std::string& path) {
+    std::ifstream file(path);
+    std::string line;
+    bool first = true;
+    while (std::getline(file, line)) {
+        std::istringstream in(line);
+        std::string key;
+        int value = 0;
+        if (first && (in >> value)) return value;
+        first = false;
+        in.clear();
+        in.str(line);
+        if ((in >> key >> value) && key == "vehicles") return value;
+    }
+    return 0;
 }
 
 bool hasAllMandatoryOptions(int argc, char* argv[]) {
@@ -143,9 +166,8 @@ int main(int argc, char* argv[]) {
     instance.precomputeAccessOptions(conf.nbPtOptions());
     // -v: file holding the minimum number of vehicles found by main_nb_vehicles;
     // one more vehicle is used here so that a complete solution is found quickly.
-    int minNbVehicles = 0;
-    std::ifstream vehiclesFile(getOptionValue(argc, argv, "-v"));
-    if (!(vehiclesFile >> minNbVehicles) || minNbVehicles <= 0) {
+    int minNbVehicles = readNbVehicles(getOptionValue(argc, argv, "-v"));
+    if (minNbVehicles <= 0) {
         std::cerr << "Cannot read a positive number of vehicles from " << getOptionValue(argc, argv, "-v") << "\n";
         return 1;
     }

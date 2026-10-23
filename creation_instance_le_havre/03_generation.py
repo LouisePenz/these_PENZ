@@ -16,6 +16,7 @@ Indexation des points : 0 dépôt, 2r+1 pickup et 2r+2 delivery de la requête r
 """
 import argparse
 from datetime import date
+from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
@@ -229,6 +230,10 @@ def main():
     parser.add_argument("-k", "--nb-instances", type=int, default=10)
     parser.add_argument("-j", "--jours", nargs="+", default=list(DAYS), choices=list(DAYS))
     parser.add_argument("-s", "--graine", type=int, default=0)
+    parser.add_argument("-o", "--dossier", default=str(INSTANCES_DIR),
+                        help="dossier des instances (par défaut instances/lehavre_rural)")
+    parser.add_argument("--equilibrer", action="store_true",
+                        help="autant d'instances du matin que du soir (ordre aléatoire) au lieu d'un tirage par instance")
     args = parser.parse_args()
 
     print("Chargement des données préparées...")
@@ -244,7 +249,7 @@ def main():
     station_nodes = (list(walk_net.nearest(stations.lon, stations.lat)),
                      list(drive_net.nearest(stations.lon, stations.lat)))
 
-    folder = INSTANCES_DIR
+    folder = Path(args.dossier)
     folder.mkdir(parents=True, exist_ok=True)
     stations.to_file(folder / "tram_stations.geojson")
     jours = []
@@ -258,9 +263,15 @@ def main():
     # Une instance se déroule entièrement le matin ou le soir (période tirée au hasard).
     n = args.nb_requetes
     summary = []
+    balanced = None
+    if args.equilibrer:
+        balanced = [k % len(PERIODS) for k in range(args.nb_instances)]
+        np.random.default_rng([args.graine, n, 10**6]).shuffle(balanced)   # graine propre à ce tirage
     for k in range(args.nb_instances):
         rng = np.random.default_rng([args.graine, n, k])
         period = PERIODS[rng.integers(len(PERIODS))]
+        if balanced is not None:
+            period = PERIODS[balanced[k]]
         period_name = "matin" if period[0] < 12 * 60 else "soir"
         reqs, nb_rejected = draw_requests(rng, n, period, rural, carreaux, city, drive_net)
         lines, walk_t, drive_t = build_instance(reqs, walk_net, drive_net, depot_nodes, station_nodes)
