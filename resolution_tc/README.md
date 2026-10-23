@@ -41,4 +41,7 @@ Les paramètres sont dans [config_tc.py](config_tc.py) :
 - `itineraires_<instance>.csv` : pour chaque requête et chaque critère, l'heure de départ, l'heure
   d'arrivée, le temps de trajet, le ratio au trajet direct en voiture, la marche, les correspondances et
   le détail de l'itinéraire.
+- `solutions_<instance>.json` : les mêmes trajets avec leurs étapes (marche, bus, tram, attente), horaires et
+  tracés (chemin à pied sur le réseau OSM, suite des arrêts desservis pour le bus et le tram). Affichés par la carte
+  de `creation_instance_le_havre/05_visualisation.py` (menu « Solution TC »).
 - `statistiques_<…>.csv` : moyenne, médiane, minimum et maximum par critère, sur les requêtes faisables.

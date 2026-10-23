@@ -3,20 +3,42 @@
 Paramètres : `config.py`. Environnement : `.venv/` (pandas, geopandas, osmnx, osmium, r5py, py7zr, scipy).
 
 ```bash
+.venv/bin/python 00_ligne_c.py          # future ligne de tram C -> GTFS_ligne_C/
 .venv/bin/python 01_telechargement.py   # données brutes -> data/raw/
 .venv/bin/python 02_preparation.py      # réseaux, zones, pondérations -> data/prepared/
 .venv/bin/python 03_generation.py -n 30 -k 10 -s 0   # -> ../instances/lehavre_rural/
+.venv/bin/python 05_visualisation.py -i 30_30_0         # carte interactive des instances (Ctrl+C pour arrêter)
+# La carte affiche aussi les solutions de ../resolution_tc et de idarp_algo (menu « Solution ») ;
+# adresse directe : http://localhost:8765/visualisation.html#30_30_0/tc:scolaire/temps/12
+.venv/bin/python solution_idarp.py ../results/lehavre_rural_idarp/lundi_scolaire/sol_30_30_0.txt   # vérification
 ```
+
+Les solutions de `idarp_algo` sont écrites par `main_LNS -sol <fichier>` (format décrit dans `Solution.h`,
+`Solution::write`) et rangées dans `results/lehavre_rural_idarp/<jour>/sol_<instance>.txt` pour être affichées.
+`solution_idarp.py` les relit et les vérifie à partir des seuls fichiers de l'instance (temps de conduite,
+capacité, fenêtres, MRT, marche, existence des courses de tram).
 
 ## Données
 
 | Donnée | Source |
 |---|---|
 | Réseau TC (horaires) | GTFS LiA, dossier `GTFS/` (22/10/2026 → 03/01/2027) |
+| Tram C (en projet) | `GTFS_ligne_C/`, créé par `00_ligne_c.py` à partir de `stop_locations.geojson` |
 | Réseaux piéton et routier | OpenStreetMap, extrait Geofabrik Haute-Normandie |
 | Population | INSEE, Filosofi 2019, carreaux de 200 m |
 | Navetteurs vers Le Havre | INSEE, MOBPRO 2023 (flux domicile-travail) |
 | Communes de la CU | geo.api.gouv.fr, EPCI 200084952 |
+
+## Ligne de tram C (en projet)
+
+Absente du GTFS LiA, elle est ajoutée par `00_ligne_c.py` sous forme d'un GTFS complémentaire (`GTFS_ligne_C/`),
+lu avec celui de LiA par tous les scripts (`gtfs.py`, et `resolution_tc`) :
+
+- 19 arrêts de Parc Jardin (Montivilliers) à Vallée Béreult, dont Université et Gares, partagés avec A et B
+  (`stop_locations.geojson`) ;
+- temps cumulés depuis Parc Jardin repris de l'ancienne matrice `instances/lehavre/public_transport_time.txt`
+  (32 min de bout en bout) ;
+- une course C pour chaque course A, mêmes jours et mêmes heures de départ aux terminus.
 
 ## Temps en voiture
 

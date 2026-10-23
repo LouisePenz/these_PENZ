@@ -3,7 +3,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parent
-GTFS_DIR = REPO / "creation_instance_le_havre" / "GTFS"
+# GTFS LiA, complété par la future ligne de tram C (creation_instance_le_havre/00_ligne_c.py)
+GTFS_DIRS = [REPO / "creation_instance_le_havre" / "GTFS", REPO / "creation_instance_le_havre" / "GTFS_ligne_C"]
 WALK_GRAPH = REPO / "creation_instance_le_havre" / "data" / "prepared" / "walk.graphml"
 INSTANCES_DIR = REPO / "instances" / "lehavre_rural"
 RESULTS_DIR = REPO / "results" / "lehavre_rural_tc"

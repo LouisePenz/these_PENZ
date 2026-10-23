@@ -26,12 +26,23 @@ class Label:
 
 
 @dataclass
+class Leg:
+    mode: str      # "marche", "attente", "tram" ou "bus"
+    line: str      # nom de la ligne (véhicule), "" sinon
+    start: object  # indice d'arrêt, ou "origine" / "destination"
+    end: object
+    dep: float
+    arr: float
+    stops: list = field(default_factory=list)   # véhicule : arrêts desservis de start à end
+
+
+@dataclass
 class Journey:
     dep: float                # départ du point d'origine (min depuis minuit)
     arr: float                # arrivée au point de destination
     walk: float
     nb_vehicles: int
-    legs: list = field(default_factory=list)   # [(mode, ligne, de, à, départ, arrivée)]
+    legs: list = field(default_factory=list)   # [Leg]
 
     @property
     def travel(self):
@@ -114,14 +125,14 @@ class McRaptor:
                     reached = label.arr + e
                     arr = max(reached, arr_lo)
                     if arr <= arr_hi + EPS and arr - label.dep <= MAX_TRAVEL + EPS:
-                        legs = self._legs(label) + [("marche", "", tt.stop_name(s), "destination", label.arr, reached)]
+                        legs = self._legs(label) + [Leg("marche", "", s, "destination", label.arr, reached)]
                         if arr > reached + EPS:
-                            legs.append(("attente", "", "destination", "destination", reached, arr))
+                            legs.append(Leg("attente", "", "destination", "destination", reached, arr))
                         journeys.append(Journey(label.dep, arr, label.walk + e, k, legs))
         if walk_direct <= MAX_ACCESS_WALK:   # trajet entièrement à pied
             dep = h if window_type == "depart" else h - walk_direct
             journeys.append(Journey(dep, dep + walk_direct, walk_direct, 0,
-                                    [("marche", "", "origine", "destination", dep, dep + walk_direct)]))
+                                    [Leg("marche", "", "origine", "destination", dep, dep + walk_direct)]))
         return pareto(journeys)
 
     def _insert(self, bags, k, s, label):
@@ -151,16 +162,15 @@ class McRaptor:
             if kind == "vehicule":
                 _, p_i, t, b_pos, a_pos = label.leg
                 p = self.tt.patterns[p_i]
-                legs.append(("vehicule", p.route, self.tt.stop_name(p.stops[b_pos]),
-                             self.tt.stop_name(p.stops[a_pos]), p.dep[t, b_pos], p.arr[t, a_pos]))
+                legs.append(Leg(p.mode, p.route, p.stops[b_pos], p.stops[a_pos], p.dep[t, b_pos],
+                                p.arr[t, a_pos], p.stops[b_pos:a_pos + 1]))
             else:
                 _, s_from, s_to, w = label.leg
                 if s_from is None:   # accès depuis l'origine : départ fixé par le premier véhicule
-                    board = legs[-1][4] if legs else label.arr
-                    legs.append(("marche", "", "origine", self.tt.stop_name(s_to), board - w, board))
+                    board = legs[-1].dep if legs else label.arr
+                    legs.append(Leg("marche", "", "origine", s_to, board - w, board))
                 else:
-                    legs.append(("marche", "", self.tt.stop_name(s_from), self.tt.stop_name(s_to),
-                                 label.arr - w, label.arr))
+                    legs.append(Leg("marche", "", s_from, s_to, label.arr - w, label.arr))
             label = label.parent
         return legs[::-1]
 

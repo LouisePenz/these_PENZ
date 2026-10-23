@@ -23,7 +23,8 @@ import pandas as pd
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
 
-from config import (CAPACITY, DAYS, DEPOT, GTFS_DIR, HORIZON, INSTANCES_DIR, MIN_DIRECT_DRIVE, MRT_RATIO,
+import gtfs
+from config import (CAPACITY, DAYS, DEPOT, HORIZON, INSTANCES_DIR, MIN_DIRECT_DRIVE, MRT_RATIO,
                     PEAK_SHARE, PERIODS, PREP_DIR, QUANTITY_PROBS, SERVICE_TIME, TIME_ORIGIN, TW_WIDTH,
                     WALK_SPEED_KMH)
 from temps_voiture import set_realistic_travel_times
@@ -59,12 +60,12 @@ class Network:
 def tram_stop_times(day, stations):
     """Passages des trams du jour (GTFS) : course, station, heures d'arrivée et de départ (min depuis minuit)."""
     yyyymmdd = day.replace("-", "")
-    cal = pd.read_csv(GTFS_DIR / "calendar_dates.txt", dtype=str)
+    cal = gtfs.read("calendar_dates.txt", dtype=str)
     services = set(cal[(cal.date == yyyymmdd) & (cal.exception_type == "1")].service_id)
-    routes = pd.read_csv(GTFS_DIR / "routes.txt")
-    trips = pd.read_csv(GTFS_DIR / "trips.txt", dtype={"service_id": str})
+    routes = gtfs.read("routes.txt")
+    trips = gtfs.read("trips.txt", dtype={"service_id": str})
     trips = trips[trips.service_id.isin(services) & trips.route_id.isin(routes[routes.route_type == 0].route_id)]
-    st = pd.read_csv(GTFS_DIR / "stop_times.txt", dtype={"stop_id": str})
+    st = gtfs.read("stop_times.txt", dtype={"stop_id": str})
     st = st[st.trip_id.isin(trips.trip_id)].copy()
     to_min = lambda s: s.str.split(":").map(lambda x: int(x[0]) * 60 + int(x[1]))
     st["arr"], st["dep"] = to_min(st.arrival_time), to_min(st.departure_time)

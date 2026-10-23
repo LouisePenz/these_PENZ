@@ -3,6 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 GTFS_DIR = ROOT / "GTFS"
+GTFS_LIGNE_C_DIR = ROOT / "GTFS_ligne_C"   # tram C (en projet), créé par 00_ligne_c.py, lu avec GTFS_DIR
 RAW_DIR = ROOT / "data" / "raw"          # fichiers téléchargés (non versionnés)
 PREP_DIR = ROOT / "data" / "prepared"    # fichiers dérivés (non versionnés)
 INSTANCES_DIR = ROOT.parent / "instances" / "lehavre_rural"

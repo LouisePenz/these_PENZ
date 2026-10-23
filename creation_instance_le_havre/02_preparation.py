@@ -18,7 +18,8 @@ import osmium
 import osmnx as ox
 import pandas as pd
 
-from config import (CODE_LE_HAVRE, FAR_TRAM_MIN_WALK, GTFS_DIR, HOTEL_DE_VILLE, MAX_DRIVE_FROM_CENTER,
+import gtfs
+from config import (CODE_LE_HAVRE, FAR_TRAM_MIN_WALK, HOTEL_DE_VILLE, MAX_DRIVE_FROM_CENTER,
                     NEAR_TRAM_MAX_WALK, PREP_DIR, RAW_DIR, WALK_SPEED_KMH)
 from temps_voiture import set_realistic_travel_times
 
@@ -87,10 +88,10 @@ def load_graphs(territory_wgs84):
 
 
 def tram_stations():
-    routes = pd.read_csv(GTFS_DIR / "routes.txt")
-    trips = pd.read_csv(GTFS_DIR / "trips.txt")
-    stop_times = pd.read_csv(GTFS_DIR / "stop_times.txt", dtype={"stop_id": str})
-    stops = pd.read_csv(GTFS_DIR / "stops.txt", dtype={"stop_id": str})
+    routes = gtfs.read("routes.txt")
+    trips = gtfs.read("trips.txt")
+    stop_times = gtfs.read("stop_times.txt", dtype={"stop_id": str})
+    stops = gtfs.read("stops.txt", dtype={"stop_id": str})
     tram_trips = trips[trips.route_id.isin(routes[routes.route_type == 0].route_id)]
     tram_stop_ids = stop_times[stop_times.trip_id.isin(tram_trips.trip_id)].stop_id.unique()
     tram_stops = stops[stops.stop_id.isin(tram_stop_ids)]

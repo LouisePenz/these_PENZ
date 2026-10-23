@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Instances Le Havre</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #5f6b7a; --border: #dde2e8;
+    --entrant: #3566b8; --sortant: #d9731f; --hover: #eef2f7; --selected: #e3ebf7;
+    --walk: #5f6b7a; --tc: #7b2cbf; --none: #c0392b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161c; --panel: #1b2129; --text: #e6e9ee; --muted: #9aa5b3; --border: #2e3742;
+      --entrant: #6f9be6; --sortant: #f0995a; --hover: #232b35; --selected: #263449;
+      --walk: #aab4c0; --tc: #c08bff; --none: #ff7b6b;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #app { display: flex; height: 100%; }
+  #panel { width: 470px; flex: none; display: flex; flex-direction: column; background: var(--panel);
+    border-right: 1px solid var(--border); }
+  #panel header { padding: 14px 16px 10px; border-bottom: 1px solid var(--border); }
+  h1 { font-size: 16px; margin: 0 0 10px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+  select { font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); }
+  label { display: inline-flex; gap: 4px; align-items: center; cursor: pointer; color: var(--muted); }
+  .group-title { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+    margin: 10px 0 2px; }
+  #summary { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  .legend { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center;
+    font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .sw { width: 22px; height: 10px; display: inline-block; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; margin: 0 5px; }
+  #tableWrap { overflow: auto; flex: 1; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { position: sticky; top: 0; background: var(--panel); color: var(--muted); font-weight: 600; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--hover); }
+  tbody tr.selected { background: var(--selected); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .tag { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  #map { flex: 1; min-width: 0; }
+  .popup h3 { margin: 0 0 6px; font-size: 14px; }
+  .popup table td { padding: 2px 6px 2px 0; border: none; white-space: normal; }
+  .popup ol { margin: 6px 0 0; padding-left: 18px; }
+  .change { width: 10px; height: 10px; background: #fff; border: 2.5px solid #1d2330; transform: rotate(45deg); }
+  @media (max-width: 760px) {
+    #app { flex-direction: column; }
+    #panel { width: 100%; height: 45%; border-right: none; border-bottom: 1px solid var(--border); }
+    #map { height: 55%; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="panel">
+    <header>
+      <h1>Instances Le Havre périurbain / rural</h1>
+      <div class="row">
+        <label for="instance" style="color:var(--text)">Instance</label>
+        <select id="instance"></select>
+      </div>
+      <div class="row">
+        <label for="solution" style="color:var(--text)">Solution</label>
+        <select id="solution"><option value="">aucune (trait direct)</option></select>
+        <select id="critere">
+          <option value="temps">temps minimal</option>
+          <option value="marche">marche minimale</option>
+          <option value="transferts">correspondances minimales</option>
+        </select>
+      </div>
+      <div class="group-title">Requêtes</div>
+      <div class="row">
+        <label><input type="checkbox" data-filter="sens" value="entrant" checked> entrant</label>
+        <label><input type="checkbox" data-filter="sens" value="sortant" checked> sortant</label>
+        <label><input type="checkbox" data-filter="periode" value="matin" checked> matin</label>
+        <label><input type="checkbox" data-filter="periode" value="soir" checked> soir</label>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" data-filter="type" value="depart" checked> fenêtre de départ</label>
+        <label><input type="checkbox" data-filter="type" value="arrivee" checked> fenêtre d'arrivée</label>
+      </div>
+      <div class="group-title">Fond</div>
+      <div class="row">
+        <label><input type="checkbox" id="showTram" checked> lignes de tram</label>
+        <label><input type="checkbox" id="showStations" checked> stations</label>
+        <label><input type="checkbox" id="showDepot" checked> dépôt</label>
+        <label><input type="checkbox" id="showRoutes"> tournées des véhicules (wIDARP)</label>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div id="summary"></div>
+    </header>
+    <div id="tableWrap">
+      <table>
+        <thead><tr><th>#</th><th>Sens</th><th>Fenêtre</th><th>Heure</th><th class="num">Pers.</th>
+          <th class="num">Voiture</th><th class="num">Trajet</th><th>Commune</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </aside>
+  <div id="map"></div>
+</div>
+<script>
+const DATA = /*__DATA__*/null;
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const COLORS = { entrant: css('--entrant'), sortant: css('--sortant'), walk: css('--walk'), tc: css('--tc'),
+                 none: css('--none') };
+// Véhicules flexibles (wIDARP) : une couleur par véhicule.
+const VEHICLE_COLORS = ['#1b9e77', '#e7298a', '#66a61e', '#e6ab02', '#a6761d', '#1f78b4', '#b15928', '#6a3d9a'];
+const vehicleColor = v => VEHICLE_COLORS[v % VEHICLE_COLORS.length];
+const changeIcon = L.divIcon({ className: '', iconSize: [10, 10], iconAnchor: [5, 5], html: '<div class="change"></div>' });
+
+const map = L.map('map', { preferCanvas: true, zoomSnap: 0.25 });
+// Fond OpenStreetMap (page servie sur localhost : ouverte en file://, les tuiles sont refusées)
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, opacity: 0.5, attribution: '&copy; contributeurs OpenStreetMap'
+}).addTo(map);
+
+// Fond : lignes de tram, stations, dépôt
+// Les lignes sont décalées à l'écran (en pixels, recalculé à chaque zoom) pour ne pas se
+// superposer sur les tronçons communs : A vers le nord-est, B vers le sud-est, C au centre.
+const TRAM_OFFSET = { A: [4, -4], B: [4, 4] };
+const tramLayer = L.layerGroup().addTo(map);
+const tramLines = [];   // { line, seg (coordonnées réelles), poly }
+for (const [line, segments] of Object.entries(DATA.tram)) {
+  for (const seg of segments) {
+    const poly = L.polyline(seg, { color: DATA.tramColors[line], weight: 5, opacity: 0.85 })
+      .bindTooltip('Tram ' + line, { sticky: true }).addTo(tramLayer);
+    tramLines.push({ line, seg, poly });
+  }
+}
+function placeTram() {
+  for (const { line, seg, poly } of tramLines) {
+    const [dx, dy] = TRAM_OFFSET[line] || [0, 0];
+    poly.setLatLngs(seg.map(ll => map.layerPointToLatLng(map.latLngToLayerPoint(ll).add([dx, dy]))));
+  }
+}
+map.on('zoomend', placeTram);
+const stationLayer = L.layerGroup().addTo(map);
+for (const s of DATA.stations) {
+  const color = s.lignes.length === 1 ? DATA.tramColors[s.lignes[0]] : '#555';
+  L.circleMarker([s.lat, s.lon], { radius: 4, color, weight: 2, fillColor: '#fff', fillOpacity: 1 })
+    .bindTooltip(`${s.nom} (${s.lignes.join(', ')})`).addTo(stationLayer);
+}
+const depotLayer = L.layerGroup().addTo(map);
+L.marker(DATA.depot, { icon: L.divIcon({ className: '', iconSize: [16, 16], iconAnchor: [8, 8],
+  html: '<div style="width:16px;height:16px;background:#222;border:2px solid #fff;border-radius:3px"></div>' }) })
+  .bindTooltip('Dépôt').addTo(depotLayer);
+
+const legend = document.getElementById('legend');
+legend.innerHTML =
+  `<span><span class="dot" style="background:${COLORS.entrant}"></span><span class="dot" style="border:2px solid ${COLORS.entrant}"></span></span>
+   <span>entrant (rural → ville) : pickup plein, delivery creux</span>
+   <span><span class="dot" style="background:${COLORS.sortant}"></span><span class="dot" style="border:2px solid ${COLORS.sortant}"></span></span>
+   <span>sortant (ville → rural)</span>` +
+  Object.entries(DATA.tramColors).map(([l, c]) => `<span class="sw" style="background:${c}"></span><span>Tram ${l}</span>`).join('') +
+  `<span class="sw" style="border-top:3px dotted ${COLORS.walk};height:0"></span><span>solution : marche</span>
+   <span class="sw" style="background:${COLORS.tc};height:4px"></span><span>solution : bus ou tram</span>
+   <span class="sw" style="background:linear-gradient(90deg,${VEHICLE_COLORS.slice(0, 4).join(',')});height:4px"></span><span>solution wIDARP : véhicule (une couleur par véhicule)</span>
+   <span style="display:flex;justify-content:center"><span class="change"></span></span><span>montée / descente</span>
+   <span class="sw" style="border-top:2px dashed ${COLORS.none};height:0"></span><span>aucun trajet</span>
+   <span></span><span><i>Clic sur une requête : les autres s'estompent ; clic sur la carte ou Échap pour tout revoir.</i></span>`;
+
+for (const [id, el] of [['showTram', tramLayer], ['showStations', stationLayer], ['showDepot', depotLayer]])
+  document.getElementById(id).addEventListener('change', e => e.target.checked ? el.addTo(map) : el.remove());
+
+// Requêtes de l'instance choisie
+const select = document.getElementById('instance');
+for (const name of Object.keys(DATA.instances)) select.add(new Option(name, name));
+const solutionSelect = document.getElementById('solution'), critereSelect = document.getElementById('critere');
+for (const [key, src] of Object.entries(DATA.solutions)) solutionSelect.add(new Option(src.label, key));
+// Solution affichée pour l'instance courante : { kind: 'tc' | 'idarp', data }, ou null.
+function currentSolution() {
+  const src = DATA.solutions[solutionSelect.value];
+  critereSelect.disabled = !src || src.kind !== 'tc';
+  const data = src && src.instances[select.value];
+  return data ? { kind: src.kind, data } : null;
+}
+// Trajet d'une requête dans la solution : objet, null (aucun trajet), ou undefined (pas de solution).
+function tripOf(r, sol) {
+  if (!sol) return undefined;
+  const t = sol.kind === 'tc' ? (sol.data[r.id] || {})[critereSelect.value] : sol.data.requetes[r.id];
+  return t === undefined ? null : t;
+}
+const routeLayer = L.layerGroup().addTo(map);
+const requestLayer = L.layerGroup().addTo(map);
+let shapes = {};       // id -> { line, pickup, delivery, row }
+let selected = null;
+
+function periode(r) { return parseInt(r.heure) < 12 ? 'matin' : 'soir'; }
+function checked(filter) {
+  return new Set([...document.querySelectorAll(`[data-filter="${filter}"]:checked`)].map(i => i.value));
+}
+function popup(r, trip) {
+  const rows = [
+    ['Sens', r.sens], ['Fenêtre', `${r.type_fenetre === 'depart' ? 'départ' : 'arrivée'} à ${r.heure}`],
+    ['Fenêtre pickup', r.fenetre_pickup], ['Fenêtre delivery', r.fenetre_delivery],
+    ['Personnes', r.quantite], ['Voiture directe', r.voiture + ' min'], ['MRT', r.mrt + ' min'],
+    ['Commune rurale', r.commune],
+    ['Marche → tram', `rural ${r.marche_rural} min, ville ${r.marche_ville} min`],
+  ];
+  if (trip && trip.motif) rows.push(['Mode', trip.motif]);
+  if (trip) rows.push(['Trajet', `${trip.depart} → ${trip.arrivee}, ${trip.temps_trajet} min (×${trip.ratio_direct}),
+    marche ${trip.marche} min, ${trip.correspondances} correspondance(s)`]);
+  else if (trip === null) rows.push(['Trajet', 'aucun (non servie, ou pas de trajet TC dans la fenêtre)']);
+  const steps = trip ? `<ol>${trip.etapes.map(e => e.mode === 'marche' ? `<li>marche ${e.de} → ${e.a} (${e.depart}–${e.arrivee})</li>`
+    : e.mode === 'attente' ? `<li>attente jusqu'à ${e.arrivee}</li>`
+    : e.mode === 'vehicule' ? `<li><b>${e.ligne}</b> ${e.de} ${e.depart} → ${e.a} ${e.arrivee}</li>`
+    : `<li><b>${e.mode} ${e.ligne}</b> ${e.de} ${e.depart} → ${e.a} ${e.arrivee}</li>`).join('')}</ol>` : '';
+  return `<div class="popup"><h3>Requête ${r.id}</h3><table>${rows.map(([k, v]) =>
+    `<tr><td style="color:var(--muted)">${k}</td><td>${v}</td></tr>`).join('')}</table>${steps}</div>`;
+}
+// Tracé d'une requête : trait direct, ou étapes de son trajet dans la solution (véhicule, bus/tram, marche).
+function requestShape(r, color, sol) {
+  const group = L.featureGroup();
+  const trip = tripOf(r, sol);
+  if (!trip) {
+    const none = trip === null;
+    L.polyline([r.p, r.d], { color: none ? COLORS.none : color, weight: 2.5, baseWeight: 2.5, opacity: 0.75,
+                            dashArray: '6 5', bubblingMouseEvents: false }).addTo(group);
+    return { group, trip };
+  }
+  for (const e of trip.etapes) {
+    if (e.mode === 'attente' || e.trace.length < 2) continue;
+    const walk = e.mode === 'marche', veh = e.mode === 'vehicule';
+    const name = veh ? e.ligne : `${e.mode} ${e.ligne}`;
+    L.polyline(e.trace, { color: walk ? COLORS.walk : veh ? vehicleColor(e.vehicule) : COLORS.tc,
+                          weight: walk ? 3 : 4.5, baseWeight: walk ? 3 : 4.5, opacity: 0.85,
+                          dashArray: walk ? '1 6' : null, lineCap: 'round', bubblingMouseEvents: false })
+      .bindTooltip(walk ? `marche : ${e.de} → ${e.a}` : `${name} : ${e.de} ${e.depart} → ${e.a} ${e.arrivee}`,
+                   { sticky: true }).addTo(group);
+  }
+  for (const e of trip.etapes.filter(e => e.mode !== 'marche' && e.mode !== 'attente')) {
+    const name = e.mode === 'vehicule' ? e.ligne : `${e.mode} ${e.ligne}`;
+    L.marker(e.trace[0], { icon: changeIcon }).bindTooltip(`montée ${name} à ${e.de} (${e.depart})`).addTo(group);
+    L.marker(e.trace[e.trace.length - 1], { icon: changeIcon })
+      .bindTooltip(`descente ${name} à ${e.a} (${e.arrivee})`).addTo(group);
+  }
+  return { group, trip };
+}
+function emphasize(group, on) {
+  group.eachLayer(l => l.setStyle && l.setStyle({ weight: l.options.baseWeight * (on ? 1.8 : 1), opacity: on ? 1 : 0.85 }));
+  if (on) group.bringToFront();
+}
+// Requête sélectionnée : les autres passent en transparence (DIM_OPACITY).
+const DIM_OPACITY = 0.3;
+function dim(shape, on) {
+  const a = on ? DIM_OPACITY : 1;
+  shape.line.eachLayer(l => l.setStyle ? l.setStyle({ opacity: on ? DIM_OPACITY : 0.85 }) : l.setOpacity(a));
+  for (const m of [shape.pickup, shape.delivery]) m.setStyle({ opacity: a, fillOpacity: a });
+}
+function clearSelection() {
+  if (selected === null || !shapes[selected]) { selected = null; return; }
+  emphasize(shapes[selected].line, false);
+  shapes[selected].row.classList.remove('selected');
+  selected = null;
+  for (const s of Object.values(shapes)) dim(s, false);
+  map.closePopup();
+}
+function select_(id, zoom) {
+  if (selected !== null && shapes[selected]) {
+    const s = shapes[selected];
+    emphasize(s.line, false);
+    s.row.classList.remove('selected');
+  }
+  selected = id;
+  const s = shapes[id];
+  if (!s) return;
+  for (const [rid, other] of Object.entries(shapes)) dim(other, Number(rid) !== id);
+  emphasize(s.line, true);
+  for (const m of [s.pickup, s.delivery]) m.bringToFront();
+  s.row.classList.add('selected');
+  s.row.scrollIntoView({ block: 'nearest' });
+  if (zoom) map.fitBounds(s.line.getBounds(), { padding: [60, 60], maxZoom: 15 });
+  s.line.openPopup(s.line.getBounds().getCenter());
+}
+
+function render(fit) {
+  const name = select.value;
+  const reqs = DATA.instances[name];
+  const sens = checked('sens'), per = checked('periode'), type = checked('type');
+  requestLayer.clearLayers();
+  shapes = {};
+  const tbody = document.getElementById('rows');
+  tbody.innerHTML = '';
+  const shown = reqs.filter(r => sens.has(r.sens) && per.has(periode(r)) && type.has(r.type_fenetre));
+  const sol = currentSolution();
+  let feasible = 0;
+  routeLayer.clearLayers();
+  if (sol && sol.kind === 'idarp' && document.getElementById('showRoutes').checked)
+    for (const route of sol.data.routes)
+      L.polyline(route.trace, { color: vehicleColor(route.vehicule), weight: 2, opacity: 0.45, interactive: false })
+        .addTo(routeLayer);
+  for (const r of shown) {
+    const color = COLORS[r.sens];
+    const { group: line, trip } = requestShape(r, color, sol);
+    if (trip) feasible++;
+    line.bindPopup(popup(r, trip)).addTo(requestLayer);
+    const pickup = L.circleMarker(r.p, { radius: 6, color: '#fff', weight: 1.5, fillColor: color, fillOpacity: 1,
+                                         bubblingMouseEvents: false })
+      .bindTooltip(`R${r.id} pickup`).addTo(requestLayer);
+    const delivery = L.circleMarker(r.d, { radius: 6, color, weight: 2.5, fillColor: '#fff', fillOpacity: 1,
+                                           bubblingMouseEvents: false })
+      .bindTooltip(`R${r.id} delivery`).addTo(requestLayer);
+    const row = tbody.insertRow();
+    row.innerHTML = `<td>${r.id}</td><td><span class="tag" style="background:${color}"></span>${r.sens}</td>
+      <td>${r.type_fenetre === 'depart' ? 'départ' : 'arrivée'}</td><td>${r.heure}</td>
+      <td class="num">${r.quantite}</td><td class="num">${r.voiture} min</td>
+      <td class="num">${trip ? Math.round(trip.temps_trajet) + ' min' : trip === null ? '—' : ''}</td><td>${r.commune}</td>`;
+    shapes[r.id] = { line, pickup, delivery, row };
+    for (const el of [line, pickup, delivery]) el.on('click', () => select_(r.id, false));
+    row.addEventListener('click', () => select_(r.id, true));
+  }
+  const people = shown.reduce((a, r) => a + r.quantite, 0);
+  document.getElementById('summary').textContent =
+    `${shown.length} requête(s) affichée(s) sur ${reqs.length}, ${people} personne(s)` +
+    (sol ? ` — trajet pour ${feasible} d'entre elles` + (sol.kind === 'idarp' ? `, objectif ${sol.data.objectif}` : '')
+         : solutionSelect.value ? ' — pas de cette solution pour cette instance' : '');
+  if (fit) {
+    map.invalidateSize();
+    const pts = reqs.flatMap(r => [r.p, r.d]).concat(DATA.stations.map(s => [s.lat, s.lon]));
+    map.fitBounds(L.latLngBounds(pts), { padding: [30, 30] });
+  }
+  selected = null;
+  const hash = [name].concat(solutionSelect.value ? [solutionSelect.value, critereSelect.value] : []).join('/');
+  try { history.replaceState(null, '', '#' + hash); } catch (e) {}
+}
+
+// Adresse : #instance, #instance/solution/critère ou #instance/solution/critère/requête
+// (ex. #30_30_0/tc:scolaire/temps/12, #30_30_0/idarp:lundi_scolaire/temps/12).
+const [fromHash, hashDay, hashCrit, hashReq] = decodeURIComponent(location.hash.slice(1)).split('/');
+select.value = DATA.instances[fromHash] ? fromHash : (DATA.initial && DATA.instances[DATA.initial] ? DATA.initial : select.options[0].value);
+if (hashDay && DATA.solutions[hashDay]) solutionSelect.value = hashDay;
+if (['temps', 'marche', 'transferts'].includes(hashCrit)) critereSelect.value = hashCrit;
+select.addEventListener('change', () => render(true));
+map.on('click', clearSelection);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') clearSelection(); });
+solutionSelect.addEventListener('change', () => render(false));
+critereSelect.addEventListener('change', () => render(false));
+document.getElementById('showRoutes').addEventListener('change', () => render(false));
+document.querySelectorAll('[data-filter]').forEach(i => i.addEventListener('change', () => render(false)));
+render(true);
+placeTram();
+if (hashReq !== undefined && shapes[Number(hashReq)]) select_(Number(hashReq), true);
+</script>
+</body>
+</html>
