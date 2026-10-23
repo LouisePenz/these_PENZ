@@ -15,6 +15,23 @@ public:
     void loadDriveTime(const std::string& filename);
     void loadWalkTime(const std::string& filename);
     void loadPublicTransportTime(const std::string& filename);
+    // Tram timetable (-tram), in place of the PT matrix: one line per run,
+    // "label nbStops stop0 time0 stop1 time1 ..." (local stop indices, times
+    // in the instance's time unit), after a first line holding the number of
+    // runs. Once loaded, publicTransportTime() is the shortest in-vehicle time
+    // of a DIRECT run between the two stops (one tram, no waiting): a lower
+    // bound for the O(1) tests, the exact STP using the runs themselves
+    // (earliestArrival / latestDeparture).
+    void loadTramTimetable(const std::string& filename);
+    bool hasTimetable() const noexcept { return hasTimetable_; }
+
+    static constexpr int kNoTram = 1000000;
+    // Over the direct runs from stop a to stop b (global point ids) leaving a
+    // no later than depCap and reaching b no earlier than arrFloor:
+    // the earliest arrival at b of one leaving a at t or later (kNoTram if none),
+    int earliestArrival(int a, int b, int t, int depCap = kNoTram, int arrFloor = -kNoTram) const;
+    // the latest departure from a of one reaching b at t or earlier (-kNoTram if none).
+    int latestDeparture(int a, int b, int t, int depCap = kNoTram, int arrFloor = -kNoTram) const;
 
     void setWaitingTime(int waitingTime) noexcept { waitingTime_ = waitingTime; }
     void setMinimumTimeInTransit(int minimumTime) noexcept { minimumTimeInTransit_ = minimumTime; }
@@ -48,6 +65,20 @@ private:
     int waitingTime_ = 0;
     int minimumTimeInTransit_ = 0;
     int walkThreshold_ = 0;
+
+    // Direct runs between two stops, Pareto-optimal (no other run leaves
+    // later AND arrives earlier): departures and arrivals both increasing.
+    // Dropping the others is exact as long as trams never overtake each
+    // other (the assumption of Molenbruch et al.), even with depCap/arrFloor.
+    struct DirectRuns {
+        std::vector<int> dep;
+        std::vector<int> arr;
+    };
+    std::vector<DirectRuns> directRuns_;  // nbStops_ x nbStops_, by local indices
+    bool hasTimetable_ = false;
+    const DirectRuns& directRuns(int a, int b) const {
+        return directRuns_[static_cast<size_t>(a - firstPtStop_) * nbStops_ + (b - firstPtStop_)];
+    }
 
     static void loadMatrix(int rows, int cols, std::vector<int>& matrix, const std::string& filename);
 };

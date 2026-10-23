@@ -17,7 +17,10 @@ Solution LNS::compute(const Solution& sInit, int timeLimit) {
     Solution current = sInit;
     current.computeObjectiveFunction();
     Solution best = current;
-    if (current.unassignedRequests().empty()) pool_.add(current);
+    // The set partitioning recombines legs with the constant PT times of the
+    // matrix: not with the tram timetable (no pool collected either).
+    const bool setPartitioning = !current.instance().travelTimes().hasTimetable();
+    if (setPartitioning && current.unassignedRequests().empty()) pool_.add(current);
 
     float recordToRecordValue = conf_->recordToRecordValue();
     int nbRequests = current.instance().nbRequests();
@@ -45,7 +48,7 @@ Solution LNS::compute(const Solution& sInit, int timeLimit) {
         if (feasible) {
             trial.computeObjectiveFunction();
             ++nbIterationsFeasible;
-            pool_.add(trial);
+            if (setPartitioning) pool_.add(trial);
 
             if (trial.objectiveFunction() <= current.objectiveFunction() * (1.0f + recordToRecordValue)) {
                 ++nbIterationsAccepted;
@@ -60,7 +63,7 @@ Solution LNS::compute(const Solution& sInit, int timeLimit) {
         }
         ++iteration_;
 
-        if (pool_.size() >= poolSizeForSetPartitioning) {
+        if (setPartitioning && pool_.size() >= poolSizeForSetPartitioning) {
             double timeLeft = timeLimit - secondsSince(start);
             Solution recombined(current.instance());
             if (timeLeft > 0) {

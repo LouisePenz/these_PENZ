@@ -204,6 +204,18 @@ static int checkSchedule(const Solution& scheduled, const std::string& label, st
             if (!contains(walk.complementaryStops(), stop.pointId))
                 log.add("PT stop not among the request's candidates", req(requestId) + ": stop " + std::to_string(stop.pointId));
             int arrival = stop.time + load + tt.publicTransportTime(stop.pointId, walk.nearestStop()) + walk.walkTime();
+            if (tt.hasTimetable()) {
+                // The first tram from the stop after the service there that
+                // does not arrive before the delivery window.
+                int tram = tt.earliestArrival(stop.pointId, walk.nearestStop(), stop.time + load,
+                                              TravelTimeProvider::kNoTram,
+                                              request.deliveryWindow().lowerBound - walk.walkTime());
+                if (tram == TravelTimeProvider::kNoTram) {
+                    log.add("walk: no tram from the vehicle's stop", req(requestId));
+                    continue;
+                }
+                arrival = tram + walk.walkTime();
+            }
             checkWindow(log, "pickup outside its window", requestId, pickup.time, request.pickupWindow());
             checkWindow(log, "walk: arrival at delivery outside its window", requestId, arrival,
                         request.deliveryWindow());
@@ -223,6 +235,17 @@ static int checkSchedule(const Solution& scheduled, const std::string& label, st
             if (!contains(walk.complementaryStops(), stop.pointId))
                 log.add("PT stop not among the request's candidates", req(requestId) + ": stop " + std::to_string(stop.pointId));
             int departure = stop.time - walk.walkTime() - tt.publicTransportTime(walk.nearestStop(), stop.pointId);
+            if (tt.hasTimetable()) {
+                // The last tram reaching the vehicle's stop by its service
+                // there that can be caught leaving within the pickup window.
+                int tram = tt.latestDeparture(walk.nearestStop(), stop.pointId, stop.time,
+                                              request.pickupWindow().upperBound + walk.walkTime());
+                if (tram == -TravelTimeProvider::kNoTram) {
+                    log.add("walk: no tram to the vehicle's stop", req(requestId));
+                    continue;
+                }
+                departure = tram - walk.walkTime();
+            }
             checkWindow(log, "walk: departure from pickup outside its window", requestId, departure,
                         request.pickupWindow());
             checkWindow(log, "delivery outside its window", requestId, delivery.time, request.deliveryWindow());
@@ -267,7 +290,9 @@ static int checkSchedule(const Solution& scheduled, const std::string& label, st
                     transfer->posStopAfter != stopAfter.position || transfer->posDelivery != delivery.position)
                     log.add("Transfer record points at the wrong stops", req(requestId));
             }
-            int earliestStopAfter = stopBefore.time + load + ptTime;
+            int earliestStopAfter = tt.hasTimetable()
+                                        ? tt.earliestArrival(stopBefore.pointId, stopAfter.pointId, stopBefore.time + load)
+                                        : stopBefore.time + load + ptTime;
             if (stopAfter.time < earliestStopAfter)
                 log.add("transfer: second vehicle leaves before the request arrives",
                         req(requestId) + ": t(stopAfter)=" + std::to_string(stopAfter.time) + " < " +

@@ -141,9 +141,28 @@ private:
             int to;
             int weight;
         };
+        // A tram ride with the timetable (TravelTimeProvider::hasTimetable),
+        // an arc of variable weight (Molenbruch et al. 2021, EJOR 290, 81-98):
+        // some direct run from stop `from` to stop `to` leaving no earlier
+        // than value(early) + earlyOffset and arriving no later than
+        // value(late) + lateOffset, among those leaving by depCap and arriving
+        // from arrFloor on. Runs never overtake each other, so the condition
+        // is monotone in both values, and several such arcs sharing the same
+        // ride (same stops, caps) hold together iff each one holds.
+        struct TramArc {
+            int early;
+            int earlyOffset;
+            int late;
+            int lateOffset;
+            int from;
+            int to;
+            int depCap;
+            int arrFloor;
+        };
         std::vector<int> routeOffset;  // indexed by route, -1 outside the set
         int nbNodes = 1;
         std::vector<Arc> arcs;
+        std::vector<TramArc> tramArcs;
         // Start values of the relaxations, from the instance alone: a node's
         // own window when it is a constraint of this STP (the two nodes each
         // request's window and maximum ride time apply to), the depot's

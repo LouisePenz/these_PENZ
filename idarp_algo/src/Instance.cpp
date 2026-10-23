@@ -31,7 +31,7 @@ Instance::Instance(Header h, const std::string& instanceFile, const std::string&
       horizonTime_(h.horizon) {
     loadRequests(instanceFile);
     travelTimes_.loadDriveTime(driveTimeFile);
-    travelTimes_.loadPublicTransportTime(publicTransportFile);
+    if (!publicTransportFile.empty()) travelTimes_.loadPublicTransportTime(publicTransportFile);
     travelTimes_.loadWalkTime(walkFile);
 
     computeRelatedness();
@@ -56,8 +56,11 @@ void Instance::loadRequests(const std::string& instanceFile) {
     }
 }
 
+void Instance::loadTramTimetable(const std::string& tramFile) { travelTimes_.loadTramTimetable(tramFile); }
+
 void Instance::configurePublicTransport(int waitingTime, int minimumTimeInTransit) {
-    travelTimes_.setWaitingTime(waitingTime);
+    // With a timetable, waiting at a stop comes from the runs themselves.
+    travelTimes_.setWaitingTime(travelTimes_.hasTimetable() ? 0 : waitingTime);
     travelTimes_.setMinimumTimeInTransit(minimumTimeInTransit);
 }
 
@@ -119,6 +122,10 @@ void Instance::computeStopPairs(int maxPairs) {
                 if (!isValidStopPair(req, sb, sa)) continue;
                 StopPair p = stopPair(req, sb, sa);
                 if (p.windowBefore.lowerBound > p.windowBefore.upperBound) continue;  // no time for the whole trip
+                if (travelTimes_.hasTimetable() &&
+                    travelTimes_.earliestArrival(sb, sa, p.windowBefore.lowerBound + r.loadingTime()) >
+                        p.windowAfter.upperBound)
+                    continue;  // no tram fits between the two vehicle legs
                 valid.push_back({travelTimes_.driveTime(r.pickupId(), sb) + travelTimes_.driveTime(r.deliveryId(), sa), p});
             }
         }
@@ -184,11 +191,25 @@ void Instance::computeWalkData(int maxStops) {
             for (size_t i = 0; i < stopsAfterWalk.size() && static_cast<int>(selected.size()) < maxStops; ++i) {
                 int s = stopsAfterWalk[i].first;
                 int pt = travelTimes_.publicTransportTime(nearestStopForPickup, s);
+                int toDelivery = r.loadingTime() + travelTimes_.driveTime(s, r.deliveryId());
                 TimeWindow w;
-                w.lowerBound = r.pickupWindow().lowerBound + walk + pt;
-                w.upperBound = std::min(r.pickupWindow().upperBound + walk + pt,
-                                        r.deliveryWindow().upperBound - r.loadingTime() -
-                                            travelTimes_.driveTime(s, r.deliveryId()));
+                if (travelTimes_.hasTimetable()) {
+                    // A real tram ride is required, and the request may wait at
+                    // s: from the first tram it can catch leaving within its
+                    // pickup window, until the latest service its delivery
+                    // window and maximum ride time allow. The exact timing is
+                    // left to the STP (Solution::buildDarpGraph).
+                    if (s == nearestStopForPickup) continue;
+                    w.lowerBound = travelTimes_.earliestArrival(nearestStopForPickup, s,
+                                                                r.pickupWindow().lowerBound + walk,
+                                                                r.pickupWindow().upperBound + walk);
+                    w.upperBound = std::min(r.deliveryWindow().upperBound,
+                                            r.pickupWindow().upperBound + r.maxRideTime()) - toDelivery;
+                } else {
+                    w.lowerBound = r.pickupWindow().lowerBound + walk + pt;
+                    w.upperBound = std::min(r.pickupWindow().upperBound + walk + pt,
+                                            r.deliveryWindow().upperBound - toDelivery);
+                }
                 if (w.lowerBound > w.upperBound) continue;
                 selected.push_back(s);
                 r.walkAccess().setWindowForStop(s, w);
@@ -227,11 +248,27 @@ void Instance::computeWalkData(int maxStops) {
             for (size_t i = 0; i < stopsBeforeWalk.size() && static_cast<int>(selected.size()) < maxStops; ++i) {
                 int s = stopsBeforeWalk[i].first;
                 int pt = travelTimes_.publicTransportTime(s, nearestStopForDelivery);
+                int fromPickup = r.loadingTime() + travelTimes_.driveTime(r.pickupId(), s);
                 TimeWindow w;
-                w.lowerBound = std::max(r.pickupWindow().lowerBound + r.loadingTime() +
-                                            travelTimes_.driveTime(r.pickupId(), s),
-                                        r.deliveryWindow().lowerBound - r.loadingTime() - pt - walk);
-                w.upperBound = r.deliveryWindow().upperBound - r.loadingTime() - pt - walk;
+                if (travelTimes_.hasTimetable()) {
+                    // A real tram ride is required, the request possibly
+                    // waiting for it at s: until the last tram reaching the
+                    // delivery on time (on foot) leaves, and no earlier than
+                    // its pickup window and maximum ride time allow. The exact
+                    // timing is left to the STP (Solution::buildDarpGraph).
+                    if (s == nearestStopForDelivery) continue;
+                    int lastTram = travelTimes_.latestDeparture(s, nearestStopForDelivery,
+                                                                r.deliveryWindow().upperBound - walk,
+                                                                TravelTimeProvider::kNoTram,
+                                                                r.deliveryWindow().lowerBound - walk);
+                    w.lowerBound = std::max(r.pickupWindow().lowerBound,
+                                            r.deliveryWindow().lowerBound - r.maxRideTime()) + fromPickup;
+                    w.upperBound = lastTram - r.loadingTime();
+                } else {
+                    w.lowerBound = std::max(r.pickupWindow().lowerBound + fromPickup,
+                                            r.deliveryWindow().lowerBound - r.loadingTime() - pt - walk);
+                    w.upperBound = r.deliveryWindow().upperBound - r.loadingTime() - pt - walk;
+                }
                 if (w.lowerBound > w.upperBound) continue;
                 selected.push_back(s);
                 r.walkAccess().setWindowForStop(s, w);

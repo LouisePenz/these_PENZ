@@ -31,7 +31,10 @@ void printHelp() {
     std::cout << "  -ci \"configuration instance\"                              | Mandatory |\n";
     std::cout << "  -p \"file of the instance\"                                 | Mandatory |\n";
     std::cout << "  -d \"file of the drive time\"                               | Mandatory |\n";
-    std::cout << "  -pt \"file of the public transport time\"                   | Mandatory |\n";
+    std::cout << "  -pt \"file of the public transport time\"                   | Mandatory | unless -tram\n";
+    std::cout << "  -tram \"file of the tram timetable\"                        | Optional  | Replaces -pt: tram runs\n";
+    std::cout << "                                                            |           | with their times (one tram\n";
+    std::cout << "                                                            |           | per trip, no set partitioning)\n";
     std::cout << "  -w \"file of the walk time\"                                | Mandatory |\n";
     std::cout << "  -v \"file with the minimum number of vehicles\"             | Mandatory | (main_nb_vehicles -res); uses it + 1\n";
     std::cout << "  -f \"folder of instance/drive time/ public transport time\" | Optional  | Default \"./\"\n";
@@ -64,11 +67,11 @@ const char* getOptionValue(int argc, char* argv[], const std::string& flag) {
 }
 
 bool hasAllMandatoryOptions(int argc, char* argv[]) {
-    const char* mandatory[] = {"-p", "-w", "-d", "-pt", "-c", "-ci", "-v"};
+    const char* mandatory[] = {"-p", "-w", "-d", "-c", "-ci", "-v"};
     for (const char* flag : mandatory) {
         if (getOptionValue(argc, argv, flag) == nullptr) return false;
     }
-    return true;
+    return getOptionValue(argc, argv, "-pt") != nullptr || getOptionValue(argc, argv, "-tram") != nullptr;
 }
 
 // Fresh operator instances each time -- both PartialLNS and LNS own their own
@@ -123,13 +126,15 @@ int main(int argc, char* argv[]) {
 
     Instance instance(instanceFolder + getOptionValue(argc, argv, "-p"),
                        instanceFolder + getOptionValue(argc, argv, "-d"),
-                       instanceFolder + getOptionValue(argc, argv, "-pt"),
+                       getOptionValue(argc, argv, "-pt") ? instanceFolder + getOptionValue(argc, argv, "-pt") : "",
                        instanceFolder + getOptionValue(argc, argv, "-w"));
 
     std::string searchConfigFile = getOptionValue(argc, argv, "-c");
     std::string instanceConfigFile = getOptionValue(argc, argv, "-ci");
     ConfLNS conf(searchConfigFile, instanceConfigFile);
 
+    if (getOptionValue(argc, argv, "-tram") != nullptr)
+        instance.loadTramTimetable(instanceFolder + getOptionValue(argc, argv, "-tram"));
     instance.configurePublicTransport(conf.waitingTime(), conf.minimumTimeInTransit());
     instance.configureWalk(conf.walkThreshold());
     instance.precomputeAccessOptions(conf.nbPtOptions());
@@ -193,8 +198,10 @@ int main(int argc, char* argv[]) {
     // Stage 3: a last set partitioning over the rest of the routes -- those
     // collected since the LNS last ran it, plus the best solution's (no time
     // limit for now).
+    // (Not with the tram timetable: see LNS::compute.)
     Solution recombined(instance);
-    bool found = solveSetPartitioning(lns.pool(), best, recombined, check ? &std::cerr : nullptr);
+    bool found = !instance.travelTimes().hasTimetable() &&
+                 solveSetPartitioning(lns.pool(), best, recombined, check ? &std::cerr : nullptr);
     if (spTrace.is_open())
         writeSetPartitioningTrace(spTrace, lns.pool().size(), best.objectiveFunction(), found,
                                   recombined.objectiveFunction());

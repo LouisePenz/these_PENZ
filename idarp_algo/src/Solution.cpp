@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <iostream>
 #include <unordered_set>
+#include <limits>
 #include <numeric>
 
 #include "LinkedRoutesTiming.h"
@@ -115,6 +116,7 @@ bool Solution::buildDarpGraph(const std::vector<int>& affectedRoutes, DarpGraph&
     graph.routeOffset.assign(routes_.size(), -1);
     graph.nbNodes = 1;  // node 0: the artificial depot
     graph.arcs.clear();
+    graph.tramArcs.clear();
     for (int r : affectedRoutes) {
         graph.routeOffset[r] = graph.nbNodes;
         graph.nbNodes += routes_[r].size() + 2;
@@ -182,6 +184,16 @@ bool Solution::buildDarpGraph(const std::vector<int>& affectedRoutes, DarpGraph&
         int stopBeforeServiceTime = routes_[t.routeBefore].stopAt(t.posStopBefore).serviceTime;
         graph.arcs.push_back({graph.stopNode(t.routeAfter, t.posStopAfter), graph.stopNode(t.routeBefore, t.posStopBefore),
                               -t.ptTravelTime - stopBeforeServiceTime});
+        // With the timetable, the arc above only keeps the shortest ride (a
+        // valid bound); the tram ride itself: leaving stopBefore after the
+        // service there, reaching stopAfter by the second vehicle's service.
+        if (tt.hasTimetable()) {
+            const RouteStop& before = routes_[t.routeBefore].stopAt(t.posStopBefore);
+            const RouteStop& after = routes_[t.routeAfter].stopAt(t.posStopAfter);
+            graph.tramArcs.push_back({graph.stopNode(t.routeBefore, t.posStopBefore), stopBeforeServiceTime,
+                                      graph.stopNode(t.routeAfter, t.posStopAfter), 0, before.pointId,
+                                      after.pointId, TravelTimeProvider::kNoTram, -TravelTimeProvider::kNoTram});
+        }
         placements[t.requestId].transfer = true;
     }
 
@@ -236,6 +248,33 @@ bool Solution::buildDarpGraph(const std::vector<int>& affectedRoutes, DarpGraph&
             graph.earliestStart[slot.node] = std::max(0, slot.stop->windowLtw);
             graph.latestStart[slot.node] = std::min(H, slot.stop->windowUtw);
         }
+
+        // Walk patterns with the timetable: the stop's window and leg maximum
+        // ride time above are only bounds; the tram ride itself, on foot at
+        // the other end (node 0 stands for the horizon H).
+        if (tt.hasTimetable() && !p.transfer && (after || before)) {
+            int walkTime = walk.walkTime();
+            if (after) {  // walk at pickup
+                // Leaves the pickup in its window, walks to the nearest stop,
+                // reaches the vehicle's stop by its service there; the
+                // delivery no later than the maximum ride time after leaving.
+                int stop = nearSlot.stop->pointId, depCap = request.pickupWindow().upperBound + walkTime;
+                graph.tramArcs.push_back({farSlot.node, walkTime - request.maxRideTime(), nearSlot.node, 0,
+                                          walk.nearestStop(), stop, depCap, -TravelTimeProvider::kNoTram});
+                graph.tramArcs.push_back({0, request.pickupWindow().lowerBound + walkTime - H, nearSlot.node, 0,
+                                          walk.nearestStop(), stop, depCap, -TravelTimeProvider::kNoTram});
+            } else {  // walk at delivery
+                // Leaves the vehicle's stop after the service there, reaches
+                // the delivery on foot within its window and the maximum ride
+                // time after the pickup.
+                int stop = farSlot.stop->pointId, arrFloor = request.deliveryWindow().lowerBound - walkTime;
+                int service = farSlot.stop->serviceTime;
+                graph.tramArcs.push_back({farSlot.node, service, nearSlot.node, request.maxRideTime() - walkTime,
+                                          stop, walk.nearestStop(), TravelTimeProvider::kNoTram, arrFloor});
+                graph.tramArcs.push_back({farSlot.node, service, 0, request.deliveryWindow().upperBound - walkTime - H,
+                                          stop, walk.nearestStop(), TravelTimeProvider::kNoTram, arrFloor});
+            }
+        }
     }
     return true;
 }
@@ -263,14 +302,31 @@ bool Solution::propagateForwardDarp(const std::vector<int>& affectedRoutes, bool
     // Bellman-Ford relaxation. Values are final after |V| - 1 passes if there
     // is no positive cycle; one more pass is needed to see that nothing
     // changes anymore, hence |V| passes before declaring a cycle.
+    //
+    // Tram arcs (variable weights) push their late node up to the earliest
+    // tram arrival. Values only increase and stay below H, so the relaxation
+    // still ends -- but a chain of tram arcs may need more than |V| passes,
+    // hence no pass limit with them.
+    const TravelTimeProvider& tt = instance_->travelTimes();
+    const int maxPasses = graph.tramArcs.empty() ? graph.nbNodes : std::numeric_limits<int>::max();
     bool converged = false;
-    for (int pass = 0; pass < graph.nbNodes && !converged; ++pass) {
+    for (int pass = 0; pass < maxPasses && !converged; ++pass) {
         converged = true;
         for (const DarpGraph::Arc& a : graph.arcs) {
             if (value[a.to] > value[a.from] + a.weight) {
                 int newValue = value[a.to] - a.weight;
                 if (newValue > H) return false;  // infeasible: window exceeds the horizon
                 value[a.from] = newValue;
+                converged = false;
+            }
+        }
+        for (const DarpGraph::TramArc& a : graph.tramArcs) {
+            int arrival = tt.earliestArrival(a.from, a.to, value[a.early] + a.earlyOffset, a.depCap, a.arrFloor);
+            if (arrival == TravelTimeProvider::kNoTram) return false;  // no tram left
+            int newValue = arrival - a.lateOffset;
+            if (value[a.late] < newValue) {
+                if (newValue > H) return false;
+                value[a.late] = newValue;
                 converged = false;
             }
         }
@@ -307,14 +363,28 @@ bool Solution::propagateBackwardDarp(const std::vector<int>& affectedRoutes) {
     fixed[0] = 1;
     for (int r : affectedRoutes) fixed[graph.routeOffset[r]] = 1;
 
+    // Tram arcs pull their early node down to the latest tram departure (see
+    // propagateForwardDarp for the pass limit).
+    const TravelTimeProvider& tt = instance_->travelTimes();
+    const int maxPasses = graph.tramArcs.empty() ? graph.nbNodes : std::numeric_limits<int>::max();
     bool converged = false;
-    for (int pass = 0; pass < graph.nbNodes && !converged; ++pass) {
+    for (int pass = 0; pass < maxPasses && !converged; ++pass) {
         converged = true;
         for (const DarpGraph::Arc& a : graph.arcs) {
             if (value[a.to] > value[a.from] + a.weight) {
                 int newValue = value[a.from] + a.weight;
                 if (fixed[a.to] || newValue < 0) return false;
                 value[a.to] = newValue;
+                converged = false;
+            }
+        }
+        for (const DarpGraph::TramArc& a : graph.tramArcs) {
+            int departure = tt.latestDeparture(a.from, a.to, value[a.late] + a.lateOffset, a.depCap, a.arrFloor);
+            if (departure == -TravelTimeProvider::kNoTram) return false;  // no tram early enough
+            int newValue = departure - a.earlyOffset;
+            if (value[a.early] > newValue) {
+                if (fixed[a.early] || newValue < 0) return false;
+                value[a.early] = newValue;
                 converged = false;
             }
         }

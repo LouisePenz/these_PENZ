@@ -26,6 +26,11 @@ public:
     const PointRegistry& pointRegistry() const noexcept { return registry_; }
     const TravelTimeProvider& travelTimes() const noexcept { return travelTimes_; }
 
+    // Optional (-tram), before configurePublicTransport(): replaces the PT
+    // matrix by the tram timetable (see TravelTimeProvider::loadTramTimetable).
+    // The PT file given to the constructor may then be empty.
+    void loadTramTimetable(const std::string& tramFile);
+
     // Must be called (in this order) before precomputeAccessOptions(), so that
     // TravelTimeProvider knows the waiting time / minimum PT ride / walk threshold.
     void configurePublicTransport(int waitingTime, int minimumTimeInTransit);
