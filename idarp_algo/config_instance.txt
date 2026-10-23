@@ -2,3 +2,4 @@ waiting_time:5
 minimum_time_in_transport_public:10
 threshold_to_walk:5
 time_limit:600
+iteration_limit:50000
