@@ -437,6 +437,68 @@ void Solution::print() const {
     }
 }
 
+void Solution::write(std::ostream& out) const {
+    const TravelTimeProvider& tt = instance_->travelTimes();
+    struct Placed {
+        int route;
+        const RouteStop* stop;
+    };
+    std::vector<std::vector<Placed>> byRequest(instance_->nbRequests());
+    static const char* roleCode[] = {"P", "D", "SB", "SA"};  // StopRole order
+
+    out << "routes " << nbRoutes() << "\n";
+    for (int r = 0; r < nbRoutes(); ++r) {
+        const Route& route = routes_[r];
+        out << "route " << r << " " << route.size() << "\n";
+        for (int i = 0; i < route.size(); ++i) {
+            const RouteStop& s = route.stopAt(i);
+            out << roleCode[static_cast<int>(s.role)] << " " << s.requestId << " " << s.pointId << " " << s.ltwDarp
+                << "\n";
+            byRequest[s.requestId].push_back({r, &s});
+        }
+    }
+
+    out << "requests " << instance_->nbRequests() << "\n";
+    for (int id = 0; id < instance_->nbRequests(); ++id) {
+        const Request& request = instance_->request(id);
+        const WalkAccess& walk = request.walkAccess();
+        const int load = request.loadingTime();
+        const Placed* role[4] = {nullptr, nullptr, nullptr, nullptr};
+        for (const Placed& p : byRequest[id]) role[static_cast<int>(p.stop->role)] = &p;
+        const Placed *pickup = role[0], *delivery = role[1], *before = role[2], *after = role[3];
+
+        out << id << " ";
+        if (pickup && delivery && before && after) {
+            int sb = before->stop->pointId, sa = after->stop->pointId, t = before->stop->ltwDarp + load;
+            std::pair<int, int> ride = tt.hasTimetable() ? tt.earliestRun(sb, sa, t)
+                                                         : std::make_pair(t, t + tt.publicTransportTime(sb, sa));
+            out << "transfer " << before->route << " " << after->route << " " << sb << " " << sa << " "
+                << ride.first << " " << ride.second;
+        } else if (pickup && delivery) {
+            out << "direct " << pickup->route;
+        } else if (after && delivery) {
+            int stop = after->stop->pointId, t = after->stop->ltwDarp, w = walk.walkTime();
+            std::pair<int, int> ride =
+                tt.hasTimetable()
+                    ? tt.latestRun(walk.nearestStop(), stop, t, request.pickupWindow().upperBound + w)
+                    : std::make_pair(t - tt.publicTransportTime(walk.nearestStop(), stop), t);
+            out << "walk_pickup " << after->route << " " << walk.nearestStop() << " " << w << " " << ride.first - w
+                << " " << ride.first << " " << ride.second << " " << stop;
+        } else if (pickup && before) {
+            int stop = before->stop->pointId, t = before->stop->ltwDarp + load, w = walk.walkTime();
+            std::pair<int, int> ride =
+                tt.hasTimetable() ? tt.earliestRun(stop, walk.nearestStop(), t, TravelTimeProvider::kNoTram,
+                                                   request.deliveryWindow().lowerBound - w)
+                                  : std::make_pair(t, t + tt.publicTransportTime(stop, walk.nearestStop()));
+            out << "walk_delivery " << pickup->route << " " << stop << " " << ride.first << " " << ride.second << " "
+                << walk.nearestStop() << " " << w << " " << ride.second + w;
+        } else {
+            out << "unassigned";
+        }
+        out << "\n";
+    }
+}
+
 bool Solution::checkConsistency() const {
     bool ok = true;
     auto report = [&ok](const std::string& message) {

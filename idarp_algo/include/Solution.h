@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iosfwd>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -92,6 +93,21 @@ public:
     // unassigned requests) -- deliberately not the request/instance data
     // already printed by Instance::print().
     void print() const;
+
+    // Writes the solution in a text format meant for other tools (main_LNS -sol), with the earliest
+    // schedule (ltwDarp, which must be up to date -- see refreshTiming). Times in the instance's unit.
+    //   routes <nbRoutes>
+    //   route <r> <nbStops>, then one line per stop: <P|D|SB|SA> <requestId> <pointId> <time>
+    //     (P pickup, D delivery, SB leaves the vehicle for PT, SA boards it from PT; depot implicit)
+    //   requests <nbRequests>, then one line per request:
+    //     <id> direct <route>
+    //     <id> walk_pickup <route> <nearestStop> <walkTime> <leave> <ptDep> <ptArr> <stop>
+    //     <id> walk_delivery <route> <stop> <ptDep> <ptArr> <nearestStop> <walkTime> <arrival>
+    //     <id> transfer <routeBefore> <routeAfter> <stopBefore> <stopAfter> <ptDep> <ptArr>
+    //     <id> unassigned
+    // ptDep / ptArr: the tram run with the timetable (-tram); with the PT matrix, the ride ending
+    // or starting at the vehicle's stop (average waiting included in its duration).
+    void write(std::ostream& out) const;
 
     // Validates internal invariants that a manual pointer/index bug would
     // silently violate: Transfer entries reference the right roles/requests

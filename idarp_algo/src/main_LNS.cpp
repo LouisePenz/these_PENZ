@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
+#include <numeric>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -42,6 +43,9 @@ void printHelp() {
     std::cout << "  -sp \"file\"                                                | Optional  | One line per set partitioning\n";
     std::cout << "                                                            |           | run: nb routes, best before,\n";
     std::cout << "                                                            |           | recombined (NA if none)\n";
+    std::cout << "  -sol \"file\"                                               | Optional  | Writes the best solution\n";
+    std::cout << "                                                            |           | (routes, schedule, mode of\n";
+    std::cout << "                                                            |           | each request: Solution::write)\n";
     std::cout << "  -check                                                    | Optional  | Check the initial and best\n";
     std::cout << "                                                            |           | solutions (SolutionChecker),\n";
     std::cout << "                                                            |           | report on stderr\n";
@@ -225,6 +229,21 @@ int main(int argc, char* argv[]) {
         std::cout << "\n-sres isn't wired to a file writer yet (Solution has none) -- printing instead:\n";
         best.print();
     }*/
+
+    if (getOptionValue(argc, argv, "-sol") != nullptr) {
+        // The schedule written is the earliest one: up to date whichever stage `best` comes from.
+        std::vector<int> allRoutes(best.nbRoutes());
+        std::iota(allRoutes.begin(), allRoutes.end(), 0);
+        best.refreshTiming(allRoutes);
+        std::ofstream solutionFile(getOptionValue(argc, argv, "-sol"));
+        solutionFile << "instance " << getOptionValue(argc, argv, "-p") << "\n";
+        if (getOptionValue(argc, argv, "-tram") != nullptr)
+            solutionFile << "pt tram " << getOptionValue(argc, argv, "-tram") << "\n";
+        else
+            solutionFile << "pt matrix " << getOptionValue(argc, argv, "-pt") << "\n";
+        solutionFile << "seed " << seed << "\nobjective " << best.objectiveFunction() << "\n";
+        best.write(solutionFile);
+    }
 
     std::ofstream objectiveFile("objective.txt");
     objectiveFile << best.objectiveFunction() << std::endl;

@@ -95,18 +95,27 @@ void TravelTimeProvider::loadTramTimetable(const std::string& filename) {
     hasTimetable_ = true;
 }
 
-int TravelTimeProvider::earliestArrival(int a, int b, int t, int depCap, int arrFloor) const {
+std::pair<int, int> TravelTimeProvider::earliestRun(int a, int b, int t, int depCap, int arrFloor) const {
     const DirectRuns& r = directRuns(a, b);
     auto end = std::upper_bound(r.dep.begin(), r.dep.end(), depCap) - r.dep.begin();
     auto first = std::max(std::lower_bound(r.dep.begin(), r.dep.end(), t) - r.dep.begin(),
                           std::lower_bound(r.arr.begin(), r.arr.end(), arrFloor) - r.arr.begin());
-    return first < end ? r.arr[first] : kNoTram;
+    return first < end ? std::make_pair(r.dep[first], r.arr[first]) : std::make_pair(kNoTram, kNoTram);
 }
 
-int TravelTimeProvider::latestDeparture(int a, int b, int t, int depCap, int arrFloor) const {
+std::pair<int, int> TravelTimeProvider::latestRun(int a, int b, int t, int depCap, int arrFloor) const {
     const DirectRuns& r = directRuns(a, b);
     auto last = std::min(std::upper_bound(r.arr.begin(), r.arr.end(), t) - r.arr.begin(),
                          std::upper_bound(r.dep.begin(), r.dep.end(), depCap) - r.dep.begin()) - 1;
     auto first = std::lower_bound(r.arr.begin(), r.arr.end(), arrFloor) - r.arr.begin();
-    return last >= first ? r.dep[last] : -kNoTram;
+    return last >= first ? std::make_pair(r.dep[last], r.arr[last]) : std::make_pair(kNoTram, kNoTram);
+}
+
+int TravelTimeProvider::earliestArrival(int a, int b, int t, int depCap, int arrFloor) const {
+    return earliestRun(a, b, t, depCap, arrFloor).second;
+}
+
+int TravelTimeProvider::latestDeparture(int a, int b, int t, int depCap, int arrFloor) const {
+    int departure = latestRun(a, b, t, depCap, arrFloor).first;
+    return departure == kNoTram ? -kNoTram : departure;
 }

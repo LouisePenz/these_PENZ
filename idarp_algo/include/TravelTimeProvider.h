@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "PointRegistry.h"
@@ -32,6 +33,9 @@ public:
     int earliestArrival(int a, int b, int t, int depCap = kNoTram, int arrFloor = -kNoTram) const;
     // the latest departure from a of one reaching b at t or earlier (-kNoTram if none).
     int latestDeparture(int a, int b, int t, int depCap = kNoTram, int arrFloor = -kNoTram) const;
+    // The same runs, whole: (departure from a, arrival at b), {kNoTram, kNoTram} if none.
+    std::pair<int, int> earliestRun(int a, int b, int t, int depCap = kNoTram, int arrFloor = -kNoTram) const;
+    std::pair<int, int> latestRun(int a, int b, int t, int depCap = kNoTram, int arrFloor = -kNoTram) const;
 
     void setWaitingTime(int waitingTime) noexcept { waitingTime_ = waitingTime; }
     void setMinimumTimeInTransit(int minimumTime) noexcept { minimumTimeInTransit_ = minimumTime; }
