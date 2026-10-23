@@ -66,9 +66,9 @@ void Instance::configurePublicTransport(int waitingTime, int minimumTimeInTransi
 
 void Instance::configureWalk(int walkThreshold) { travelTimes_.setWalkThreshold(walkThreshold); }
 
-void Instance::precomputeAccessOptions(int maxPtOptions) {
-    computeStopPairs(maxPtOptions);
-    computeWalkData(maxPtOptions);
+void Instance::precomputeAccessOptions(int maxPtOptions, TripModel model) {
+    if (model != TripModel::Darp) computeStopPairs(maxPtOptions);
+    if (model == TripModel::Widarp) computeWalkData(maxPtOptions);
 }
 
 bool Instance::isStopPairFeasible(int req, int stopBefore, int stopAfter) const {

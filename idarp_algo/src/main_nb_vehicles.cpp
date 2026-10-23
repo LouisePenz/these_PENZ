@@ -32,6 +32,10 @@ void printHelp() {
     std::cout << "                                                            |           | with their times (one tram\n";
     std::cout << "                                                            |           | per trip, no set partitioning)\n";
     std::cout << "  -w \"file of the walk time\"                                | Mandatory |\n";
+    std::cout << "  -idarp                                                    | Optional  | IDARP: direct or vehicle ->\n";
+    std::cout << "                                                            |           | PT -> vehicle, no walking\n";
+    std::cout << "  -darp                                                     | Optional  | DARP: direct trips only\n";
+    std::cout << "                                                            |           | (default: wIDARP, every trip)\n";
     std::cout << "  -f \"folder of instance/drive time/ public transport time\" | Optional  | Default \"./\"\n";
     std::cout << "  -res \"file where to write the result\"                     | Optional  | Default do not write\n";
     std::cout << "  -sol \"file\"                                               | Optional  | Writes the complete solution\n";
@@ -56,6 +60,17 @@ const char* getOptionValue(int argc, char* argv[], const std::string& flag) {
         }
     }
     return nullptr;
+}
+
+// Trip model from -idarp / -darp (wIDARP without either); false if both are given.
+bool readTripModel(int argc, char* argv[], TripModel& model) {
+    bool idarp = hasFlag(argc, argv, "-idarp"), darp = hasFlag(argc, argv, "-darp");
+    if (idarp && darp) {
+        std::cerr << "-idarp and -darp are exclusive\n";
+        return false;
+    }
+    model = idarp ? TripModel::Idarp : darp ? TripModel::Darp : TripModel::Widarp;
+    return true;
 }
 
 bool hasAllMandatoryOptions(int argc, char* argv[]) {
@@ -114,7 +129,9 @@ int main(int argc, char* argv[]) {
         instance.loadTramTimetable(instanceFolder + getOptionValue(argc, argv, "-tram"));
     instance.configurePublicTransport(conf.waitingTime(), conf.minimumTimeInTransit());
     instance.configureWalk(conf.walkThreshold());
-    instance.precomputeAccessOptions(conf.nbPtOptions());
+    TripModel model;
+    if (!readTripModel(argc, argv, model)) return 1;
+    instance.precomputeAccessOptions(conf.nbPtOptions(), model);
     instance.setNbVehicles(instance.nbRequests() - 1);
 
     int timeLimit = 5*60;
@@ -139,7 +156,8 @@ int main(int argc, char* argv[]) {
         best.writeFile(getOptionValue(argc, argv, "-sol"),
                        {std::string("instance ") + getOptionValue(argc, argv, "-p"),
                         tram ? std::string("pt tram ") + tram : std::string("pt matrix ") + getOptionValue(argc, argv, "-pt"),
-                        "seed " + std::to_string(seed), "objective " + std::to_string(best.objectiveFunction()),
+                        std::string("model ") + tripModelName(model), "seed " + std::to_string(seed),
+                        "objective " + std::to_string(best.objectiveFunction()),
                         "vehicles " + std::to_string(nbVehicles)});
     }
 

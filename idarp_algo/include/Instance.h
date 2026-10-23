@@ -7,6 +7,13 @@
 #include "Request.h"
 #include "TravelTimeProvider.h"
 
+// The trips a request may take: wIDARP every pattern (direct, vehicle -> PT -> vehicle, walk -> PT ->
+// vehicle and its reverse), IDARP no walking (direct, vehicle -> PT -> vehicle), DARP direct only.
+enum class TripModel { Widarp, Idarp, Darp };
+inline const char* tripModelName(TripModel model) {
+    return model == TripModel::Widarp ? "widarp" : model == TripModel::Idarp ? "idarp" : "darp";
+}
+
 class Instance {
 public:
     Instance(const std::string& instanceFile, const std::string& driveTimeFile,
@@ -40,7 +47,8 @@ public:
     // pairs for the 2-vehicle pattern (Request::ptAccess), and up to
     // maxPtOptions stops on the vehicle side of the walk pattern
     // (Request::walkAccess). Requires configurePublicTransport/configureWalk first.
-    void precomputeAccessOptions(int maxPtOptions);
+    // Only the options of the patterns `model` allows (none for DARP): the others are never tried.
+    void precomputeAccessOptions(int maxPtOptions, TripModel model = TripModel::Widarp);
 
     // True if request req can go pickup -> stopBefore -> [PT] -> stopAfter -> delivery
     // while respecting its maximum ride time.
