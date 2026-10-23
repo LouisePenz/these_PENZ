@@ -10,12 +10,12 @@ Paramètres : `config.py`. Environnement : `.venv/` (pandas, geopandas, osmnx, o
 .venv/bin/python 05_visualisation.py -i 30_30_0         # carte interactive des instances (Ctrl+C pour arrêter)
 # La carte affiche aussi les solutions de ../resolution_tc et de idarp_algo (menu « Solution ») ;
 # adresse directe : http://localhost:8765/visualisation.html#30_30_0/tc:scolaire/temps/12
-.venv/bin/python solution_idarp.py ../results/lehavre_rural/widarp/lundi_scolaire/sol_30_30_0.txt   # vérification
+.venv/bin/python solution_idarp.py ../results/lehavre_rural/widarp/route_time/lundi_scolaire/sol_30_30_0.txt   # vérification
 ```
 
 Les solutions de `idarp_algo` sont écrites par `main_LNS -sol <fichier>` (format décrit dans `Solution.h`,
-`Solution::write`) et rangées dans `results/lehavre_rural/<modèle>/<jour>/sol_<instance>.txt` (modèle `widarp`, `idarp` ou `darp`,
-voir les options `-idarp` / `-darp`) pour être affichées ; les solutions initiales de `main_nb_vehicles` dans
+`Solution::write`) et rangées dans `results/lehavre_rural/<modèle>/<objectif>/<jour>/sol_<instance>.txt` (modèle `widarp`, `idarp` ou
+`darp`, options `-idarp` / `-darp` ; objectif `route_time` ou `riding_time`, option `-ridingTime`) pour être affichées ; les solutions initiales de `main_nb_vehicles` dans
 `results/lehavre_sol_init/<modèle>/<jour>/`.
 `solution_idarp.py` les relit et les vérifie à partir des seuls fichiers de l'instance (temps de conduite,
 capacité, fenêtres, MRT, marche, existence des courses de tram).

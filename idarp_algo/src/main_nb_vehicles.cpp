@@ -35,6 +35,9 @@ void printHelp() {
     std::cout << "  -idarp                                                    | Optional  | IDARP: direct or vehicle ->\n";
     std::cout << "                                                            |           | PT -> vehicle, no walking\n";
     std::cout << "  -darp                                                     | Optional  | DARP: direct trips only\n";
+    std::cout << "  -ridingTime                                               | Optional  | Minimise the users' riding\n";
+    std::cout << "                                                            |           | time (default: the vehicles'\n";
+    std::cout << "                                                            |           | riding time)\n";
     std::cout << "                                                            |           | (default: wIDARP, every trip)\n";
     std::cout << "  -f \"folder of instance/drive time/ public transport time\" | Optional  | Default \"./\"\n";
     std::cout << "  -res \"file where to write the result\"                     | Optional  | Default do not write\n";
@@ -131,6 +134,7 @@ int main(int argc, char* argv[]) {
     instance.configureWalk(conf.walkThreshold());
     TripModel model;
     if (!readTripModel(argc, argv, model)) return 1;
+    if (hasFlag(argc, argv, "-ridingTime")) instance.setObjective(Objective::RidingTime);
     instance.precomputeAccessOptions(conf.nbPtOptions(), model);
     instance.setNbVehicles(instance.nbRequests() - 1);
 

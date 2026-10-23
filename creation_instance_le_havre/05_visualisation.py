@@ -3,7 +3,7 @@
 Affiche, pour l'instance choisie dans le menu : les pickups et deliveries reliés par une ligne pour chaque
 requête, le dépôt, les stations et le tracé des lignes de tram A, B et C (OpenStreetMap). Un clic sur une
 requête (carte ou tableau) donne son détail. Avec une solution de resolution_tc (jour + critère) ou de idarp_algo
-(results/lehavre_rural/<modèle>/<jour>/sol_<instance>.txt, écrite par main_LNS -sol, ou solution initiale de
+(results/lehavre_rural/<modèle>/<objectif>/<jour>/sol_<instance>.txt, écrite par main_LNS -sol, ou solution initiale de
 main_nb_vehicles dans results/lehavre_sol_init/<modèle>/<jour>/), chaque requête est tracée
 selon son trajet : véhicule, bus ou tram, marche, et un symbole à chaque montée ou descente.
 
@@ -30,9 +30,10 @@ from config import DEPOT, INSTANCES_DIR, PREP_DIR, RAW_DIR, ROOT
 
 TC_RESULTS_DIR = ROOT.parent / "results" / "lehavre_rural_tc"   # solutions de resolution_tc
 # Solutions de idarp_algo, par modèle (widarp, idarp, darp) et par jour :
-IDARP_RESULTS_DIR = ROOT.parent / "results" / "lehavre_rural"   # main_LNS -sol : <modèle>/<jour>/sol_<instance>.txt
-IDARP_INIT_DIR = ROOT.parent / "results" / "lehavre_sol_init"   # main_nb_vehicles -sol : idem, sol_init_<instance>.txt
+IDARP_RESULTS_DIR = ROOT.parent / "results" / "lehavre_rural"   # main_LNS -sol : <modèle>/<objectif>/<jour>/sol_*.txt
+IDARP_INIT_DIR = ROOT.parent / "results" / "lehavre_sol_init"   # main_nb_vehicles -sol : <modèle>/<jour>/sol_init_*.txt
 MODEL_LABELS = {"widarp": "wIDARP", "idarp": "IDARP", "darp": "DARP"}
+OBJECTIVE_LABELS = {"route_time": "temps roulé", "riding_time": "temps usagers"}
 TC_DAYS = {"scolaire": "lundi scolaire", "vacances": "lundi hors scolaire", "samedi": "samedi"}
 TRAM_RELATIONS = {"A": 2641214, "B": 2641215, "C": 20185321}   # relations OSM "Tram X : terminus -> terminus"
 TRAM_COLORS = {"A": "#d1495b", "B": "#2e86ab", "C": "#5b8c2a"}
@@ -106,18 +107,20 @@ def solutions(instances):
             if f.exists():
                 out.setdefault(f"tc:{day}", {"label": f"TC – {label}", "kind": "tc", "instances": {}})[
                     "instances"][name] = json.loads(f.read_text())["requetes"]
-    files = [(f, "", "") for f in sorted(IDARP_RESULTS_DIR.glob("*/*/sol_*.txt"))] + \
-            [(f, "init-", " initiale") for f in sorted(IDARP_INIT_DIR.glob("*/*/sol_init_*.txt"))]
+    files = [(f, f.parent.parent.parent.name, f.parent.parent.name)
+             for f in sorted(IDARP_RESULTS_DIR.glob("*/*/*/sol_*.txt"))] + \
+            [(f, f.parent.parent.name, "init") for f in sorted(IDARP_INIT_DIR.glob("*/*/sol_init_*.txt"))]
     walk_graph = ox.load_graphml(PREP_DIR / "walk.graphml") if files else None
-    for f, prefix, suffix in files:
-        model = f.parent.parent.name
-        label = MODEL_LABELS.get(model, model) + suffix
+    for f, model, objective in files:
+        label = MODEL_LABELS.get(model, model) + (
+            " initiale" if objective == "init" else f" {OBJECTIVE_LABELS.get(objective, objective)}")
+        prefix = f"{objective}-"
         sol = solution_idarp.read(f)
         name = sol["instance"][1:-4]
         if name not in instances:
             continue
         mode = "horaires" if sol["pt"][0] == "tram" else "matrice"
-        key = f"{prefix}{model}:{f.parent.name}"
+        key = f"{prefix}{model}:{f.parent.name}"   # ex. route_time-widarp:lundi_scolaire, init-darp:samedi_scolaire
         out.setdefault(key, {"label": f"{label} – {f.parent.name.replace('_', ' ')} ({mode})", "kind": "idarp",
                              "instances": {}})["instances"][name] = solution_idarp.trips_for_map(sol, walk_graph)
     return out

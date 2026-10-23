@@ -22,7 +22,8 @@ Solution PartialLNS::compute(const Instance& instance, int noImprovementLimit, i
     // per vehicle: out and back within the horizon), regardless of instance size.
     if(timeLimit == -1)
         timeLimit = conf_->timeLimit();
-    unassignedWeight_ = 2LL * instance.nbVehicles() * instance.horizonTime() + 1;
+    // The users' riding time (Objective::RidingTime) is bounded by nbRequests * horizon.
+    unassignedWeight_ = (2LL * instance.nbVehicles() + instance.nbRequests()) * instance.horizonTime() + 1;
 
     Solution current(instance);
     current.computeObjectiveFunction();

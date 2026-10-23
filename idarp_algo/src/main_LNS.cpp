@@ -40,6 +40,9 @@ void printHelp() {
     std::cout << "  -idarp                                                    | Optional  | IDARP: direct or vehicle ->\n";
     std::cout << "                                                            |           | PT -> vehicle, no walking\n";
     std::cout << "  -darp                                                     | Optional  | DARP: direct trips only\n";
+    std::cout << "  -ridingTime                                               | Optional  | Minimise the users' riding\n";
+    std::cout << "                                                            |           | time (default: the vehicles'\n";
+    std::cout << "                                                            |           | riding time)\n";
     std::cout << "                                                            |           | (default: wIDARP, every trip)\n";
     std::cout << "  -v \"file with the minimum number of vehicles\"             | Mandatory | main_nb_vehicles -res, or its\n";
     std::cout << "                                                            |           | -sol solution (\"vehicles\" line);\n";
@@ -180,6 +183,7 @@ int main(int argc, char* argv[]) {
     instance.configureWalk(conf.walkThreshold());
     TripModel model;
     if (!readTripModel(argc, argv, model)) return 1;
+    if (hasFlag(argc, argv, "-ridingTime")) instance.setObjective(Objective::RidingTime);
     instance.precomputeAccessOptions(conf.nbPtOptions(), model);
     // -v: file holding the minimum number of vehicles found by main_nb_vehicles;
     // one more vehicle is used here so that a complete solution is found quickly.
@@ -240,9 +244,9 @@ int main(int argc, char* argv[]) {
     // Stage 3: a last set partitioning over the rest of the routes -- those
     // collected since the LNS last ran it, plus the best solution's (no time
     // limit for now).
-    // (Not with the tram timetable: see LNS::compute.)
+    // (Not with the tram timetable nor for the users' riding time: see LNS::compute.)
     Solution recombined(instance);
-    bool found = !instance.travelTimes().hasTimetable() &&
+    bool found = !instance.travelTimes().hasTimetable() && instance.objective() == Objective::RouteTime &&
                  solveSetPartitioning(lns.pool(), best, recombined, check ? &std::cerr : nullptr);
     if (spTrace.is_open())
         writeSetPartitioningTrace(spTrace, lns.pool().size(), best.objectiveFunction(), found,

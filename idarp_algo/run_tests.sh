@@ -2,6 +2,8 @@
 # Instances Le Havre périurbain / rural, mode horaires des trams (-tram), pour chaque jour de référence.
 # Modèle (variable MODELE) : widarp (défaut, tous les trajets), idarp (-idarp : direct ou
 # véhicule -> TC -> véhicule, sans marche), darp (-darp : direct seulement).
+# Objectif de la phase 2 (variable OBJECTIF) : route_time (défaut, temps roulé des véhicules) ou
+# riding_time (-ridingTime, temps de trajet des usagers) ; la phase 1 (nombre de véhicules) n'en dépend pas.
 # Deux jeux d'instances (variable JEU) :
 #   JEU=test  (défaut) : ../instances/lehavre_rural, résultats comme ci-dessous ;
 #   JEU=irace          : ../instances/lehavre_rural_irace (réglage des paramètres), résultats dans
@@ -10,12 +12,13 @@
 #      -> ../results/lehavre_sol_init/<modèle>/<jour>/sol_init_<instance>.txt
 #   2. main_LNS avec ce nombre de véhicules (+1 ; -v lit la ligne "vehicles" de la solution initiale) :
 #      la meilleure solution
-#      -> ../results/lehavre_rural/<modèle>/<jour>/sol_<instance>.txt
+#      -> ../results/lehavre_rural/<modèle>/<objectif>/<jour>/sol_<instance>.txt
 # Les résultats déjà présents sont sautés. Usage : ./run_tests.sh [phase : 1, 2 ou tout (défaut)]
 # Chaque réglage ci-dessous peut être remplacé par une variable d'environnement, par exemple :
 #   DAYS=lundi_scolaire INSTANCES="30_30_0 30_30_1" NB_JOBS=8 ./run_tests.sh 1
 #   JEU=irace NB_JOBS=6 ./run_tests.sh 1     (nombre de véhicules du jeu d'irace, utilisé par target-runner)
 #   MODELE=darp NB_JOBS=6 ./run_tests.sh
+#   OBJECTIF=riding_time NB_JOBS=6 ./run_tests.sh 2
 
 # Nombre de processus en parallèle
 NB_JOBS=${NB_JOBS:-3}
@@ -33,10 +36,16 @@ case "$MODELE" in
     darp)   MODEL_FLAG="-darp" ;;
     *) echo "MODELE inconnu : $MODELE (widarp, idarp ou darp)" >&2; exit 1 ;;
 esac
+OBJECTIF=${OBJECTIF:-route_time}
+case "$OBJECTIF" in
+    route_time)  OBJECTIVE_FLAG="" ;;
+    riding_time) OBJECTIVE_FLAG="-ridingTime" ;;
+    *) echo "OBJECTIF inconnu : $OBJECTIF (route_time ou riding_time)" >&2; exit 1 ;;
+esac
 JEU=${JEU:-test}
 case "$JEU" in
-    test)  SUFFIX_INST="";       DEFAULT_RES="../results/lehavre_rural/$MODELE"; DEFAULT_INIT="../results/lehavre_sol_init/$MODELE" ;;
-    irace) SUFFIX_INST="_irace"; DEFAULT_RES="../results/lehavre_rural_irace/$MODELE"; DEFAULT_INIT="../results/lehavre_sol_init_irace/$MODELE" ;;
+    test)  SUFFIX_INST="";       DEFAULT_RES="../results/lehavre_rural/$MODELE/$OBJECTIF"; DEFAULT_INIT="../results/lehavre_sol_init/$MODELE" ;;
+    irace) SUFFIX_INST="_irace"; DEFAULT_RES="../results/lehavre_rural_irace/$MODELE/$OBJECTIF"; DEFAULT_INIT="../results/lehavre_sol_init_irace/$MODELE" ;;
     *) echo "JEU inconnu : $JEU (test ou irace)" >&2; exit 1 ;;
 esac
 INST_DIR=${INST_DIR:-"../instances/lehavre_rural${SUFFIX_INST}/"}
@@ -92,8 +101,8 @@ run_lns() {
     mkdir -p "$RES_DIR/$day"
     # main_LNS écrit objective.txt dans le dossier courant : un dossier de travail par calcul.
     work=$(mktemp -d)
-    echo "[RUN ] LNS $MODELE $day $inst"
-    (cd "$work" && "$BIN_DIR/main_LNS" $MODEL_FLAG -f "$INST_DIR" \
+    echo "[RUN ] LNS $MODELE $OBJECTIF $day $inst"
+    (cd "$work" && "$BIN_DIR/main_LNS" $MODEL_FLAG $OBJECTIVE_FLAG -f "$INST_DIR" \
         -p "i${inst}.txt" \
         -d "d${inst}.txt" \
         -w "w${inst}.txt" \
@@ -107,7 +116,7 @@ run_lns() {
 }
 
 export -f run_nb_vehicles run_lns
-export BIN_DIR INST_DIR RES_DIR SOL_INIT_DIR SEED NB_VEHICLES_TIME CONFIG CONFIG_INSTANCE MODELE MODEL_FLAG
+export BIN_DIR INST_DIR RES_DIR SOL_INIT_DIR SEED NB_VEHICLES_TIME CONFIG CONFIG_INSTANCE MODELE MODEL_FLAG OBJECTIF OBJECTIVE_FLAG
 
 jobs_list() {
     for day in $DAYS; do

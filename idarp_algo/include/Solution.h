@@ -95,8 +95,8 @@ public:
     // already printed by Instance::print().
     void print() const;
 
-    // Writes the solution in a text format meant for other tools (main_LNS -sol), with the earliest
-    // schedule (ltwDarp, which must be up to date -- see refreshTiming). Times in the instance's unit.
+    // Writes the solution in a text format meant for other tools (main_LNS -sol), with the times of
+    // `schedule` (route x position, e.g. from ridingTimeHeuristic). Times in the instance's unit.
     //   routes <nbRoutes>
     //   route <r> <nbStops>, then one line per stop: <P|D|SB|SA> <requestId> <pointId> <time>
     //     (P pickup, D delivery, SB leaves the vehicle for PT, SA boards it from PT; depot implicit)
@@ -108,9 +108,10 @@ public:
     //     <id> unassigned
     // ptDep / ptArr: the tram run with the timetable (-tram); with the PT matrix, the ride ending
     // or starting at the vehicle's stop (average waiting included in its duration).
-    void write(std::ostream& out) const;
-    // Writes `header` (one "key value" line each) then write() into `path`, after refreshTiming on
-    // every route so that the schedule written is up to date. Returns false if the file can't be opened.
+    void write(std::ostream& out, const std::vector<std::vector<int>>& schedule) const;
+    // Writes `header` (one "key value" line each), the objective values (objective_type, route_time,
+    // riding_time on the schedule of ridingTimeHeuristic, riding_time_lp from ridingTimeLp), then
+    // write() with that schedule into `path`. Returns false if the file can't be opened.
     bool writeFile(const std::string& path, const std::vector<std::string>& header);
 
     // Validates internal invariants that a manual pointer/index bug would
@@ -123,9 +124,21 @@ public:
     // instead of a segfault dozens of iterations later.
     bool checkConsistency() const;
 
+    // The instance's objective (Instance::objective): routeTime() or ridingTimeHeuristic().
+    void computeObjectiveFunction();
     // Sum of vehicle driving time on every route, depot-to-first-stop and
     // last-stop-to-depot included (matches the old compute_objective_function).
-    void computeObjectiveFunction();
+    int routeTime() const;
+    // Users' riding time -- from the pick-up by a vehicle to the drop-off, or to the arrival on foot
+    // at the delivery -- summed over the requests served, on the schedule that picks every user up as
+    // late as possible and serves everything else as early as possible given that: feasible, cheap
+    // (two STP relaxations), not necessarily optimal. Fills `schedule` (route x position) if given.
+    // -1 if the routes have no feasible schedule.
+    int ridingTimeHeuristic(std::vector<std::vector<int>>* schedule = nullptr) const;
+    // The smallest users' riding time over every schedule of these routes: a linear program (CPLEX).
+    // Exact with the PT matrix; with the timetable, each tram ride keeps the run of the heuristic
+    // schedule (so it is an upper bound, <= ridingTimeHeuristic). -1 if it can't be computed.
+    double ridingTimeLp() const;
     int objectiveFunction() const noexcept { return objectiveFunction_; }
     void setObjectiveFunction(int value) noexcept { objectiveFunction_ = value; }
 
@@ -199,6 +212,29 @@ private:
     // pass over their stops and the transfers. Returns false if a request in
     // those routes matches no known pattern.
     bool buildDarpGraph(const std::vector<int>& affectedRoutes, DarpGraph& graph) const;
+    // The Bellman-Ford relaxations of the STP, in place from `value`: relaxEarliest pushes values up
+    // (earliest schedule above them), relaxLatest pulls them down, `fixed` nodes may not move. False if
+    // no schedule exists.
+    bool relaxEarliest(const DarpGraph& graph, std::vector<int>& value) const;
+    bool relaxLatest(const DarpGraph& graph, std::vector<int>& value, const std::vector<char>& fixed) const;
+
+    // The schedule of ridingTimeHeuristic on the STP of every route, with each user's ride: value(end) +
+    // endOffset - value(start), or endTime - value(start) when the end is fixed (walk at delivery with
+    // the timetable: the tram run is fixed by the schedule).
+    struct RidingSchedule {
+        struct Ride {
+            int start;
+            int end;
+            int endOffset = 0;
+            bool endFixed = false;
+            int endTime = 0;
+        };
+        DarpGraph graph;
+        std::vector<int> value;
+        std::vector<Ride> rides;
+        int total = 0;
+    };
+    bool ridingSchedule(RidingSchedule& out) const;
 
     const Instance* instance_;
     std::vector<Route> routes_;

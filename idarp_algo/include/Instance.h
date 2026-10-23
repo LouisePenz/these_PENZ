@@ -14,6 +14,13 @@ inline const char* tripModelName(TripModel model) {
     return model == TripModel::Widarp ? "widarp" : model == TripModel::Idarp ? "idarp" : "darp";
 }
 
+// What the search minimises: the vehicles' riding time (driving between stops, waiting excluded), or the
+// users' riding time (from the pick-up by a vehicle to the drop-off, or to the arrival on foot).
+enum class Objective { RouteTime, RidingTime };
+inline const char* objectiveName(Objective objective) {
+    return objective == Objective::RouteTime ? "route_time" : "riding_time";
+}
+
 class Instance {
 public:
     Instance(const std::string& instanceFile, const std::string& driveTimeFile,
@@ -25,6 +32,8 @@ public:
     int nbStops() const noexcept { return registry_.nbStops(); }
     int capacity() const noexcept { return capacity_; }
     int horizonTime() const noexcept { return horizonTime_; }
+    Objective objective() const noexcept { return objective_; }
+    void setObjective(Objective objective) noexcept { objective_ = objective; }
 
     const Request& request(int idx) const { return requests_[idx]; }
     Request& request(int idx) { return requests_[idx]; }
@@ -91,6 +100,7 @@ private:
     int nbVehicles_ = 0;
     int capacity_ = 0;
     int horizonTime_ = 0;
+    Objective objective_ = Objective::RouteTime;
 
     std::vector<std::vector<int>> related_;
     std::vector<std::vector<int>> relatedWithTransfer_;

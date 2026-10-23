@@ -379,8 +379,8 @@ function render(fit) {
 }
 
 // Adresse : #instance, #instance/solution/critère ou #instance/solution/critère/requête
-// (ex. #30_30_0/tc:scolaire/temps/12, #30_30_0/widarp:lundi_scolaire/temps/12, init-darp:… pour une
-// solution initiale), ou une tournée : …/v2.
+// (ex. #30_30_0/tc:scolaire/temps/12, #30_30_0/route_time-widarp:lundi_scolaire/temps/12, init-darp:…
+// pour une solution initiale), ou une tournée : …/v2.
 const [fromHash, hashDay, hashCrit, hashReq] = decodeURIComponent(location.hash.slice(1)).split('/');
 select.value = DATA.instances[fromHash] ? fromHash : (DATA.initial && DATA.instances[DATA.initial] ? DATA.initial : select.options[0].value);
 if (hashDay && DATA.solutions[hashDay]) solutionSelect.value = hashDay;

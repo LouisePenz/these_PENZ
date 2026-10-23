@@ -18,8 +18,10 @@ Solution LNS::compute(const Solution& sInit, int timeLimit) {
     current.computeObjectiveFunction();
     Solution best = current;
     // The set partitioning recombines legs with the constant PT times of the
-    // matrix: not with the tram timetable (no pool collected either).
-    const bool setPartitioning = !current.instance().travelTimes().hasTimetable();
+    // matrix, and costs routes by their driving time: not with the tram
+    // timetable, nor for the users' riding time (no pool collected either).
+    const bool setPartitioning = !current.instance().travelTimes().hasTimetable() &&
+                                 current.instance().objective() == Objective::RouteTime;
     if (setPartitioning && current.unassignedRequests().empty()) pool_.add(current);
 
     float recordToRecordValue = conf_->recordToRecordValue();

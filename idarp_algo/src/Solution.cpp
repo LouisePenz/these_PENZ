@@ -1,11 +1,14 @@
 #include "Solution.h"
 
 #include <algorithm>
+#include <array>
 #include <fstream>
 #include <iostream>
 #include <unordered_set>
 #include <limits>
 #include <numeric>
+
+#include <ilcplex/ilocplex.h>
 
 #include "LinkedRoutesTiming.h"
 #include "RouteDarpTiming.h"
@@ -281,7 +284,6 @@ bool Solution::buildDarpGraph(const std::vector<int>& affectedRoutes, DarpGraph&
 }
 
 bool Solution::propagateForwardDarp(const std::vector<int>& affectedRoutes, bool warmStart) {
-    const int H = instance_->horizonTime();
     // Workspaces reused from one call to the next (one STP runs at a time):
     // no allocation once they have reached their largest size.
     thread_local DarpGraph graph;
@@ -300,6 +302,17 @@ bool Solution::propagateForwardDarp(const std::vector<int>& affectedRoutes, bool
             }
     }
 
+    if (!relaxEarliest(graph, value)) return false;
+
+    for (int r : affectedRoutes) {
+        Route& route = routes_[r];
+        for (int i = 0; i < route.size(); ++i) route.stopAt(i).ltwDarp = value[graph.stopNode(r, i)];
+    }
+    return true;
+}
+
+bool Solution::relaxEarliest(const DarpGraph& graph, std::vector<int>& value) const {
+    const int H = instance_->horizonTime();
     // Bellman-Ford relaxation. Values are final after |V| - 1 passes if there
     // is no positive cycle; one more pass is needed to see that nothing
     // changes anymore, hence |V| passes before declaring a cycle.
@@ -332,13 +345,7 @@ bool Solution::propagateForwardDarp(const std::vector<int>& affectedRoutes, bool
             }
         }
     }
-    if (!converged) return false;  // positive cycle: no assignment of times satisfies every constraint
-
-    for (int r : affectedRoutes) {
-        Route& route = routes_[r];
-        for (int i = 0; i < route.size(); ++i) route.stopAt(i).ltwDarp = value[graph.stopNode(r, i)];
-    }
-    return true;
+    return converged;  // not converged: positive cycle, no assignment of times satisfies every constraint
 }
 
 bool Solution::propagateForwardDarp(){
@@ -364,8 +371,18 @@ bool Solution::propagateBackwardDarp(const std::vector<int>& affectedRoutes) {
     fixed[0] = 1;
     for (int r : affectedRoutes) fixed[graph.routeOffset[r]] = 1;
 
+    if (!relaxLatest(graph, value, fixed)) return false;
+
+    for (int r : affectedRoutes) {
+        Route& route = routes_[r];
+        for (int i = 0; i < route.size(); ++i) route.stopAt(i).utwDarp = value[graph.stopNode(r, i)];
+    }
+    return true;
+}
+
+bool Solution::relaxLatest(const DarpGraph& graph, std::vector<int>& value, const std::vector<char>& fixed) const {
     // Tram arcs pull their early node down to the latest tram departure (see
-    // propagateForwardDarp for the pass limit).
+    // relaxEarliest for the pass limit).
     const TravelTimeProvider& tt = instance_->travelTimes();
     const int maxPasses = graph.tramArcs.empty() ? graph.nbNodes : std::numeric_limits<int>::max();
     bool converged = false;
@@ -390,13 +407,7 @@ bool Solution::propagateBackwardDarp(const std::vector<int>& affectedRoutes) {
             }
         }
     }
-    if (!converged) return false;
-
-    for (int r : affectedRoutes) {
-        Route& route = routes_[r];
-        for (int i = 0; i < route.size(); ++i) route.stopAt(i).utwDarp = value[graph.stopNode(r, i)];
-    }
-    return true;
+    return converged;
 }
 
 bool Solution::propagateBackwardDarp() {
@@ -438,11 +449,12 @@ void Solution::print() const {
     }
 }
 
-void Solution::write(std::ostream& out) const {
+void Solution::write(std::ostream& out, const std::vector<std::vector<int>>& schedule) const {
     const TravelTimeProvider& tt = instance_->travelTimes();
     struct Placed {
         int route;
         const RouteStop* stop;
+        int time;
     };
     std::vector<std::vector<Placed>> byRequest(instance_->nbRequests());
     static const char* roleCode[] = {"P", "D", "SB", "SA"};  // StopRole order
@@ -453,9 +465,9 @@ void Solution::write(std::ostream& out) const {
         out << "route " << r << " " << route.size() << "\n";
         for (int i = 0; i < route.size(); ++i) {
             const RouteStop& s = route.stopAt(i);
-            out << roleCode[static_cast<int>(s.role)] << " " << s.requestId << " " << s.pointId << " " << s.ltwDarp
-                << "\n";
-            byRequest[s.requestId].push_back({r, &s});
+            out << roleCode[static_cast<int>(s.role)] << " " << s.requestId << " " << s.pointId << " "
+                << schedule[r][i] << "\n";
+            byRequest[s.requestId].push_back({r, &s, schedule[r][i]});
         }
     }
 
@@ -470,7 +482,7 @@ void Solution::write(std::ostream& out) const {
 
         out << id << " ";
         if (pickup && delivery && before && after) {
-            int sb = before->stop->pointId, sa = after->stop->pointId, t = before->stop->ltwDarp + load;
+            int sb = before->stop->pointId, sa = after->stop->pointId, t = before->time + load;
             std::pair<int, int> ride = tt.hasTimetable() ? tt.earliestRun(sb, sa, t)
                                                          : std::make_pair(t, t + tt.publicTransportTime(sb, sa));
             out << "transfer " << before->route << " " << after->route << " " << sb << " " << sa << " "
@@ -478,7 +490,7 @@ void Solution::write(std::ostream& out) const {
         } else if (pickup && delivery) {
             out << "direct " << pickup->route;
         } else if (after && delivery) {
-            int stop = after->stop->pointId, t = after->stop->ltwDarp, w = walk.walkTime();
+            int stop = after->stop->pointId, t = after->time, w = walk.walkTime();
             std::pair<int, int> ride =
                 tt.hasTimetable()
                     ? tt.latestRun(walk.nearestStop(), stop, t, request.pickupWindow().upperBound + w)
@@ -486,7 +498,7 @@ void Solution::write(std::ostream& out) const {
             out << "walk_pickup " << after->route << " " << walk.nearestStop() << " " << w << " " << ride.first - w
                 << " " << ride.first << " " << ride.second << " " << stop;
         } else if (pickup && before) {
-            int stop = before->stop->pointId, t = before->stop->ltwDarp + load, w = walk.walkTime();
+            int stop = before->stop->pointId, t = before->time + load, w = walk.walkTime();
             std::pair<int, int> ride =
                 tt.hasTimetable() ? tt.earliestRun(stop, walk.nearestStop(), t, TravelTimeProvider::kNoTram,
                                                    request.deliveryWindow().lowerBound - w)
@@ -504,13 +516,25 @@ bool Solution::writeFile(const std::string& path, const std::vector<std::string>
     std::vector<int> allRoutes(nbRoutes());
     std::iota(allRoutes.begin(), allRoutes.end(), 0);
     refreshTiming(allRoutes);
+    // The schedule written: the one ridingTimeHeuristic evaluates (the earliest one if none).
+    std::vector<std::vector<int>> schedule;
+    int ridingTime = ridingTimeHeuristic(&schedule);
+    if (ridingTime < 0) {
+        schedule.assign(nbRoutes(), {});
+        for (int r = 0; r < nbRoutes(); ++r)
+            for (const RouteStop& s : routes_[r].stops()) schedule[r].push_back(s.ltwDarp);
+    }
     std::ofstream file(path);
     if (!file.is_open()) {
         std::cerr << "Cannot write the solution to " << path << "\n";
         return false;
     }
     for (const std::string& line : header) file << line << "\n";
-    write(file);
+    file << "objective_type " << objectiveName(instance_->objective()) << "\n"
+         << "route_time " << routeTime() << "\n"
+         << "riding_time " << ridingTime << "\n"
+         << "riding_time_lp " << ridingTimeLp() << "\n";
+    write(file, schedule);
     return true;
 }
 
@@ -606,16 +630,155 @@ bool Solution::checkConsistency() const {
 }
 
 void Solution::computeObjectiveFunction() {
-    objectiveFunction_ = 0;
+    if (instance_->objective() == Objective::RouteTime) {
+        objectiveFunction_ = routeTime();
+        return;
+    }
+    int ridingTime = ridingTimeHeuristic();
+    // No schedule (never for a solution the search keeps): worse than any feasible one.
+    objectiveFunction_ = ridingTime >= 0 ? ridingTime : 2 * instance_->nbRequests() * instance_->horizonTime();
+}
+
+int Solution::routeTime() const {
+    int total = 0;
     for (const Route& route : routes_) {
         if (route.empty()) continue;
         int prevPointId = route.depotPointId();
         for (int i = 0; i < route.size(); ++i) {
-            objectiveFunction_ += instance_->travelTimes().driveTime(prevPointId, route.stopAt(i).pointId);
+            total += instance_->travelTimes().driveTime(prevPointId, route.stopAt(i).pointId);
             prevPointId = route.stopAt(i).pointId;
         }
-        objectiveFunction_ += instance_->travelTimes().driveTime(prevPointId, route.depotPointId());
+        total += instance_->travelTimes().driveTime(prevPointId, route.depotPointId());
     }
+    return total;
+}
+
+bool Solution::ridingSchedule(RidingSchedule& out) const {
+    const TravelTimeProvider& tt = instance_->travelTimes();
+    std::vector<int> allRoutes(nbRoutes());
+    std::iota(allRoutes.begin(), allRoutes.end(), 0);
+    DarpGraph& graph = out.graph;
+    if (!buildDarpGraph(allRoutes, graph)) return false;
+
+    // 1. The latest schedule.
+    std::vector<int> latest(graph.latestStart.begin(), graph.latestStart.end());
+    std::vector<char> fixed(graph.nbNodes, 0);
+    fixed[0] = 1;
+    for (int r : allRoutes) fixed[graph.routeOffset[r]] = 1;
+    if (!relaxLatest(graph, latest, fixed)) return false;
+
+    // Each request's stops, by role (StopRole order), as STP nodes.
+    struct Where {
+        int node = -1;
+        const RouteStop* stop = nullptr;
+    };
+    std::vector<std::array<Where, 4>> where(instance_->nbRequests());
+    for (int r : allRoutes)
+        for (int i = 0; i < routes_[r].size(); ++i) {
+            const RouteStop& s = routes_[r].stopAt(i);
+            where[s.requestId][static_cast<int>(s.role)] = {graph.stopNode(r, i), &s};
+        }
+
+    // 2. Every user picked up (by its first vehicle) at its latest time, everything else as early as
+    // possible: the earliest schedule above those lower bounds. The latest schedule satisfies them, so
+    // this one exists and keeps the pick-ups there.
+    out.value.assign(graph.earliestStart.begin(), graph.earliestStart.end());
+    for (const auto& w : where) {
+        const Where& start = w[0].stop ? w[0] : w[3];  // pickup, or the vehicle's stop after walking
+        if (start.stop) out.value[start.node] = std::max(out.value[start.node], latest[start.node]);
+    }
+    if (!relaxEarliest(graph, out.value)) return false;
+
+    // 3. The rides.
+    out.rides.clear();
+    out.total = 0;
+    for (int id = 0; id < instance_->nbRequests(); ++id) {
+        const Where &pickup = where[id][0], &delivery = where[id][1], &before = where[id][2], &after = where[id][3];
+        RidingSchedule::Ride ride;
+        if (pickup.stop && delivery.stop) {  // direct, or two vehicles
+            ride.start = pickup.node;
+            ride.end = delivery.node;
+        } else if (after.stop && delivery.stop) {  // walk at pickup
+            ride.start = after.node;
+            ride.end = delivery.node;
+        } else if (pickup.stop && before.stop) {  // walk at delivery: tram, then on foot
+            const Request& request = instance_->request(id);
+            const WalkAccess& walk = request.walkAccess();
+            int load = before.stop->serviceTime;
+            ride.start = pickup.node;
+            ride.end = before.node;
+            if (tt.hasTimetable()) {
+                ride.endFixed = true;
+                ride.endTime = tt.earliestRun(before.stop->pointId, walk.nearestStop(), out.value[before.node] + load,
+                                              TravelTimeProvider::kNoTram,
+                                              request.deliveryWindow().lowerBound - walk.walkTime())
+                                   .second +
+                               walk.walkTime();
+            } else {
+                ride.endOffset =
+                    load + tt.publicTransportTime(before.stop->pointId, walk.nearestStop()) + walk.walkTime();
+            }
+        } else {
+            continue;  // not served
+        }
+        int end = ride.endFixed ? ride.endTime : out.value[ride.end] + ride.endOffset;
+        out.total += end - out.value[ride.start];
+        out.rides.push_back(ride);
+    }
+    return true;
+}
+
+int Solution::ridingTimeHeuristic(std::vector<std::vector<int>>* schedule) const {
+    thread_local RidingSchedule rs;
+    if (!ridingSchedule(rs)) return -1;
+    if (schedule) {
+        schedule->assign(nbRoutes(), {});
+        for (int r = 0; r < nbRoutes(); ++r)
+            for (int i = 0; i < routes_[r].size(); ++i) (*schedule)[r].push_back(rs.value[rs.graph.stopNode(r, i)]);
+    }
+    return rs.total;
+}
+
+double Solution::ridingTimeLp() const {
+    // The STP of the heuristic schedule as a linear program: minimise the rides over its constraints.
+    // Tram arcs keep the run they take on that schedule (the earliest after their early node), which
+    // turns them into bounds on their two nodes.
+    RidingSchedule rs;
+    if (!ridingSchedule(rs)) return -1;
+    const DarpGraph& graph = rs.graph;
+    const TravelTimeProvider& tt = instance_->travelTimes();
+    double result = -1;
+    IloEnv env;
+    try {
+        IloModel model(env);
+        IloNumVarArray t(env);
+        for (int n = 0; n < graph.nbNodes; ++n) t.add(IloNumVar(env, graph.earliestStart[n], graph.latestStart[n]));
+        for (const DarpGraph::Arc& a : graph.arcs) model.add(t[a.to] - t[a.from] <= a.weight);
+        for (const DarpGraph::TramArc& a : graph.tramArcs) {
+            std::pair<int, int> run =
+                tt.earliestRun(a.from, a.to, rs.value[a.early] + a.earlyOffset, a.depCap, a.arrFloor);
+            model.add(t[a.early] + a.earlyOffset <= run.first);
+            model.add(t[a.late] + a.lateOffset >= run.second);
+        }
+        IloExpr rides(env);
+        for (const RidingSchedule::Ride& ride : rs.rides) {
+            if (ride.endFixed)
+                rides += ride.endTime - t[ride.start];
+            else
+                rides += t[ride.end] + ride.endOffset - t[ride.start];
+        }
+        model.add(IloMinimize(env, rides));
+        rides.end();
+        IloCplex cplex(model);
+        cplex.setOut(env.getNullStream());
+        cplex.setWarning(env.getNullStream());
+        cplex.setParam(IloCplex::Param::Threads, 1);
+        if (cplex.solve()) result = cplex.getObjValue();
+    } catch (IloException& e) {
+        std::cerr << "[ridingTimeLp] CPLEX: " << e.getMessage() << "\n";
+    }
+    env.end();
+    return result;
 }
 
 void Solution::insertStopAt(int routeIndex, int position, RouteStop stop) {

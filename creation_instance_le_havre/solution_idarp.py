@@ -4,7 +4,8 @@
 
 La vérification n'utilise que les fichiers de l'instance (requêtes, matrices, courses de tram) : temps de
 conduite entre arrêts consécutifs, capacité, fenêtres, temps de trajet maximal, marche, et existence de
-chaque course de tram (mode -tram) avec ses heures de passage.
+chaque course de tram (mode -tram) avec ses heures de passage. Elle recalcule aussi les deux objectifs
+(temps roulé des véhicules, temps de trajet des usagers sur l'horaire écrit) et les compare à l'en-tête.
 """
 import json
 import sys
@@ -30,6 +31,11 @@ def read(path):
             break
         sol[key] = rest if len(rest) > 1 else rest[0]
     sol["objective"] = int(sol["objective"])
+    for key in ("route_time", "riding_time"):
+        if key in sol:
+            sol[key] = int(sol[key])
+    if "riding_time_lp" in sol:
+        sol["riding_time_lp"] = float(sol["riding_time_lp"])
     nb_routes = int(rest[0])
     for _ in range(nb_routes):
         _, r, n = next(lines).split()
@@ -94,6 +100,13 @@ def verify(sol, folder=INSTANCES_DIR):
         if stops and t_prev + service + drive[prev, 0] > horizon:
             errors.append(f"route {r} : retour au dépôt après l'horizon")
 
+    route_time = 0
+    for stops in sol["routes"]:
+        if stops:
+            path = [0] + [s["point"] for s in stops] + [0]
+            route_time += sum(int(drive[a, b]) for a, b in zip(path, path[1:]))
+    riding_time = 0
+
     times = {}
     for r, stops in enumerate(sol["routes"]):
         for s in stops:
@@ -115,6 +128,7 @@ def verify(sol, folder=INSTANCES_DIR):
         elif m == "direct":
             tp, td = times[(i, "pickup")][2], times[(i, "delivery")][2]
             check("pickup", tp, a, b), check("delivery", td, c, d), check("temps de trajet", td - tp, 0, mrt)
+            riding_time += td - tp
         elif m == "walk_pickup":
             ts, td = times[(i, "reprise_tc")][2], times[(i, "delivery")][2]
             if walk[idp, x["arret_proche"]] != x["marche"]:
@@ -124,6 +138,7 @@ def verify(sol, folder=INSTANCES_DIR):
                 errors.append(f"requête {i} : correspondance marche/tram/véhicule impossible")
             ride(x["arret_proche"], x["arret_vehicule"], x["tc_depart"], x["tc_arrivee"])
             check("delivery", td, c, d), check("temps de trajet", td - x["depart_a_pied"], 0, mrt)
+            riding_time += td - ts
         elif m == "walk_delivery":
             tp, ts = times[(i, "pickup")][2], times[(i, "depose_tc")][2]
             if walk[idd, x["arret_proche"]] != x["marche"]:
@@ -133,6 +148,7 @@ def verify(sol, folder=INSTANCES_DIR):
             ride(x["arret_vehicule"], x["arret_proche"], x["tc_depart"], x["tc_arrivee"])
             check("pickup", tp, a, b), check("arrivée à pied", x["arrivee_a_pied"], c, d)
             check("temps de trajet", x["arrivee_a_pied"] - tp, 0, mrt)
+            riding_time += x["arrivee_a_pied"] - tp
         elif m == "transfer":
             tp, tsb = times[(i, "pickup")][2], times[(i, "depose_tc")][2]
             tsa, td = times[(i, "reprise_tc")][2], times[(i, "delivery")][2]
@@ -140,6 +156,18 @@ def verify(sol, folder=INSTANCES_DIR):
                 errors.append(f"requête {i} : correspondance véhicule/tram/véhicule impossible")
             ride(x["arret_depose"], x["arret_reprise"], x["tc_depart"], x["tc_arrivee"])
             check("pickup", tp, a, b), check("delivery", td, c, d), check("temps de trajet", td - tp, 0, mrt)
+            riding_time += td - tp
+
+    # Objectifs annoncés dans l'en-tête (solutions écrites depuis l'ajout de -ridingTime)
+    if "route_time" in sol and sol["route_time"] != route_time:
+        errors.append(f"route_time {sol['route_time']} annoncé, {route_time} recalculé")
+    if "riding_time" in sol and sol["riding_time"] != riding_time:
+        errors.append(f"riding_time {sol['riding_time']} annoncé, {riding_time} recalculé sur l'horaire écrit")
+    if "riding_time_lp" in sol and not -1 < sol["riding_time_lp"] <= riding_time + 1e-6:
+        errors.append(f"riding_time_lp {sol['riding_time_lp']} supérieur à l'horaire écrit ({riding_time})")
+    expected = {"route_time": route_time, "riding_time": riding_time}.get(sol.get("objective_type"))
+    if expected is not None and sol["objective"] != expected:
+        errors.append(f"objective {sol['objective']} différent du {sol['objective_type']} recalculé ({expected})")
     return errors
 
 
@@ -262,7 +290,9 @@ def main():
     motifs = {}
     for x in sol["requests"].values():
         motifs[x["motif"]] = motifs.get(x["motif"], 0) + 1
-    print(f"{sol['instance']} ({' '.join(sol['pt'])}) : objectif {sol['objective']}, {motifs}")
+    values = " ".join(f"{k}={sol[k]}" for k in ("objective_type", "route_time", "riding_time", "riding_time_lp")
+                      if k in sol)
+    print(f"{sol['instance']} ({' '.join(sol['pt'])}) : objectif {sol['objective']} {values}, {motifs}")
     print("\n".join(errors) if errors else "Aucune violation.")
 
 
