@@ -240,7 +240,11 @@ def trips_for_map(sol, walk_graph, folder=INSTANCES_DIR):
                   "depart": hhmm(dep), "arrivee": hhmm(arr), "temps_trajet": arr - dep,
                   "ratio_direct": round((arr - dep) / direct, 2), "marche": x.get("marche", 0),
                   "correspondances": len(legs) - 1, "etapes": legs}
-    routes = [{"vehicule": r, "trace": [points[0]["ll"]] + [points[s["point"]]["ll"] for s in stops] + [points[0]["ll"]]}
+    roles = {"pickup": "pickup", "delivery": "delivery", "depose_tc": "dépose au tram", "reprise_tc": "reprise au tram"}
+    routes = [{"vehicule": r,
+               "trace": [points[0]["ll"]] + [points[s["point"]]["ll"] for s in stops] + [points[0]["ll"]],
+               "arrets": [{"ll": points[s["point"]]["ll"], "role": roles[s["role"]], "requete": s["requete"],
+                           "lieu": label(s["point"]), "heure": hhmm(s["temps"])} for s in stops]}
               for r, stops in enumerate(sol["routes"]) if stops]
     return {"requetes": out, "routes": routes, "objectif": sol["objective"]}
 

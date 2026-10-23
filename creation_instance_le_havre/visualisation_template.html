@@ -51,6 +51,8 @@
   .popup h3 { margin: 0 0 6px; font-size: 14px; }
   .popup table td { padding: 2px 6px 2px 0; border: none; white-space: normal; }
   .popup ol { margin: 6px 0 0; padding-left: 18px; }
+  .stopnum { width: 18px; height: 18px; border-radius: 50%; color: #fff; font: 600 10px/18px system-ui, sans-serif;
+    text-align: center; border: 1.5px solid #fff; box-shadow: 0 0 2px rgba(0,0,0,.5); }
   .change { width: 10px; height: 10px; background: #fff; border: 2.5px solid #1d2330; transform: rotate(45deg); }
   @media (max-width: 760px) {
     #app { flex-direction: column; }
@@ -114,7 +116,8 @@ const css = name => getComputedStyle(document.documentElement).getPropertyValue(
 const COLORS = { entrant: css('--entrant'), sortant: css('--sortant'), walk: css('--walk'), tc: css('--tc'),
                  none: css('--none') };
 // Véhicules flexibles (wIDARP) : une couleur par véhicule.
-const VEHICLE_COLORS = ['#1b9e77', '#e7298a', '#66a61e', '#e6ab02', '#a6761d', '#1f78b4', '#b15928', '#6a3d9a'];
+// (distinctes des trams A/B/C, du violet bus-tram et du gris marche)
+const VEHICLE_COLORS = ['#e6550d', '#e7298a', '#17becf', '#d4a017', '#8c564b', '#1a1a80', '#bcbd22', '#636363'];
 const vehicleColor = v => VEHICLE_COLORS[v % VEHICLE_COLORS.length];
 const changeIcon = L.divIcon({ className: '', iconSize: [10, 10], iconAnchor: [5, 5], html: '<div class="change"></div>' });
 
@@ -167,7 +170,8 @@ legend.innerHTML =
    <span class="sw" style="background:linear-gradient(90deg,${VEHICLE_COLORS.slice(0, 4).join(',')});height:4px"></span><span>solution wIDARP : véhicule (une couleur par véhicule)</span>
    <span style="display:flex;justify-content:center"><span class="change"></span></span><span>montée / descente</span>
    <span class="sw" style="border-top:2px dashed ${COLORS.none};height:0"></span><span>aucun trajet</span>
-   <span></span><span><i>Clic sur une requête : les autres s'estompent ; clic sur la carte ou Échap pour tout revoir.</i></span>`;
+   <span></span><span><i>Clic sur une requête (ou, avec « tournées des véhicules », sur une tournée) : le reste
+     s'estompe ; clic sur la carte ou Échap pour tout revoir.</i></span>`;
 
 for (const [id, el] of [['showTram', tramLayer], ['showStations', stationLayer], ['showDepot', depotLayer]])
   document.getElementById(id).addEventListener('change', e => e.target.checked ? el.addTo(map) : el.remove());
@@ -191,6 +195,9 @@ function tripOf(r, sol) {
   return t === undefined ? null : t;
 }
 const routeLayer = L.layerGroup().addTo(map);
+const routeStopLayer = L.layerGroup().addTo(map);   // arrêts numérotés de la tournée sélectionnée
+let routeShapes = {};    // véhicule -> { poly, route, served }
+let selectedRoute = null;
 const requestLayer = L.layerGroup().addTo(map);
 let shapes = {};       // id -> { line, pickup, delivery, row }
 let selected = null;
@@ -257,7 +264,33 @@ function dim(shape, on) {
   shape.line.eachLayer(l => l.setStyle ? l.setStyle({ opacity: on ? DIM_OPACITY : 0.85 }) : l.setOpacity(a));
   for (const m of [shape.pickup, shape.delivery]) m.setStyle({ opacity: a, fillOpacity: a });
 }
+// Tournée sélectionnée : opaque, ses arrêts numérotés ; le reste (tournées et requêtes) en transparence.
+function selectRoute(v) {
+  clearSelection();
+  selectedRoute = v;
+  for (const [veh, rs] of Object.entries(routeShapes)) {
+    const on = Number(veh) === v;
+    rs.poly.setStyle({ opacity: on ? 1 : 0.12, weight: on ? 5 : 3 });
+    if (on) rs.poly.bringToFront();
+  }
+  const { route, served } = routeShapes[v];
+  for (const [rid, shape] of Object.entries(shapes)) dim(shape, !served.has(Number(rid)));
+  route.arrets.forEach((a, k) => {
+    L.marker(a.ll, { icon: L.divIcon({ className: '', iconSize: [18, 18], iconAnchor: [9, 9],
+      html: `<div class="stopnum" style="background:${vehicleColor(v)}">${k + 1}</div>` }), zIndexOffset: 1000 })
+      .bindTooltip(`${k + 1}. ${a.heure} — ${a.role} R${a.requete} (${a.lieu})`).addTo(routeStopLayer);
+  });
+  map.fitBounds(routeShapes[v].poly.getBounds(), { padding: [40, 40] });
+}
+function clearRoute() {
+  if (selectedRoute === null) return;
+  selectedRoute = null;
+  routeStopLayer.clearLayers();
+  for (const rs of Object.values(routeShapes)) rs.poly.setStyle({ opacity: 0.7, weight: 3 });
+  for (const s of Object.values(shapes)) dim(s, false);
+}
 function clearSelection() {
+  clearRoute();
   if (selected === null || !shapes[selected]) { selected = null; return; }
   emphasize(shapes[selected].line, false);
   shapes[selected].row.classList.remove('selected');
@@ -266,6 +299,7 @@ function clearSelection() {
   map.closePopup();
 }
 function select_(id, zoom) {
+  clearRoute();
   if (selected !== null && shapes[selected]) {
     const s = shapes[selected];
     emphasize(s.line, false);
@@ -295,10 +329,20 @@ function render(fit) {
   const sol = currentSolution();
   let feasible = 0;
   routeLayer.clearLayers();
+  routeStopLayer.clearLayers();
+  routeShapes = {};
+  selectedRoute = null;
   if (sol && sol.kind === 'idarp' && document.getElementById('showRoutes').checked)
-    for (const route of sol.data.routes)
-      L.polyline(route.trace, { color: vehicleColor(route.vehicule), weight: 2, opacity: 0.45, interactive: false })
+    for (const route of sol.data.routes) {
+      const served = [...new Set(route.arrets.map(a => a.requete))];
+      const poly = L.polyline(route.trace, { color: vehicleColor(route.vehicule), weight: 3, opacity: 0.7,
+                                             bubblingMouseEvents: false })
+        .bindTooltip(`véhicule ${route.vehicule} : ${route.arrets.length} arrêts, ${route.arrets[0].heure} – `
+                     + `${route.arrets[route.arrets.length - 1].heure}, requêtes ${served.join(', ')}`, { sticky: true })
+        .on('click', () => selectRoute(route.vehicule))
         .addTo(routeLayer);
+      routeShapes[route.vehicule] = { poly, route, served: new Set(served) };
+    }
   for (const r of shown) {
     const color = COLORS[r.sens];
     const { group: line, trip } = requestShape(r, color, sol);
@@ -335,7 +379,7 @@ function render(fit) {
 }
 
 // Adresse : #instance, #instance/solution/critère ou #instance/solution/critère/requête
-// (ex. #30_30_0/tc:scolaire/temps/12, #30_30_0/idarp:lundi_scolaire/temps/12).
+// (ex. #30_30_0/tc:scolaire/temps/12, #30_30_0/idarp:lundi_scolaire/temps/12), ou une tournée : …/v2.
 const [fromHash, hashDay, hashCrit, hashReq] = decodeURIComponent(location.hash.slice(1)).split('/');
 select.value = DATA.instances[fromHash] ? fromHash : (DATA.initial && DATA.instances[DATA.initial] ? DATA.initial : select.options[0].value);
 if (hashDay && DATA.solutions[hashDay]) solutionSelect.value = hashDay;
@@ -349,7 +393,11 @@ document.getElementById('showRoutes').addEventListener('change', () => render(fa
 document.querySelectorAll('[data-filter]').forEach(i => i.addEventListener('change', () => render(false)));
 render(true);
 placeTram();
-if (hashReq !== undefined && shapes[Number(hashReq)]) select_(Number(hashReq), true);
+if (hashReq !== undefined && hashReq.startsWith('v')) {   // #…/v2 : tournée du véhicule 2
+  document.getElementById('showRoutes').checked = true;
+  render(false);
+  if (routeShapes[Number(hashReq.slice(1))]) selectRoute(Number(hashReq.slice(1)));
+} else if (hashReq !== undefined && shapes[Number(hashReq)]) select_(Number(hashReq), true);
 </script>
 </body>
 </html>

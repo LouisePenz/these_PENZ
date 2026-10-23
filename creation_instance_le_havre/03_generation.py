@@ -1,7 +1,8 @@
 """Génère des instances aléatoires au format wIDARP dans instances/lehavre_rural/.
 
 Les mêmes requêtes servent pour les trois jours de référence ; seul le temps en tram en dépend.
-Pour chaque instance k (n requêtes) :
+Chaque instance se déroule entièrement le matin (7h-11h) ou le soir (15h-19h), période tirée au hasard
+(récapitulatif dans instances.csv). Pour chaque instance k (n requêtes) :
   i{n}_{n}_{k}.txt   requêtes (format lu par idarp_algo)
   d{n}_{n}_{k}.txt   temps en voiture (min) entre dépôt, pickups/deliveries et stations de tram
   w{n}_{n}_{k}.txt   temps à pied (min), mêmes points
@@ -108,9 +109,9 @@ def tram_times(day, stations):
     return pt.astype(int)
 
 
-def draw_time(rng):
-    """Heure de référence (min depuis minuit) : période au hasard, pic avec probabilité PEAK_SHARE."""
-    start, end, peak_start, peak_end = PERIODS[rng.integers(len(PERIODS))]
+def draw_time(rng, period):
+    """Heure de référence (min depuis minuit) dans la période de l'instance, pic avec probabilité PEAK_SHARE."""
+    start, end, peak_start, peak_end = period
     if rng.random() < PEAK_SHARE:
         return int(rng.integers(peak_start, peak_end + 1)), (start, end)
     # Hors pic : uniforme sur la période privée du pic.
@@ -119,7 +120,7 @@ def draw_time(rng):
     return (start + x if x <= peak_start - start else peak_end + x - (peak_start - start)), (start, end)
 
 
-def draw_requests(rng, n, rural, carreaux, city, drive_net):
+def draw_requests(rng, n, period, rural, carreaux, city, drive_net):
     car_p = carreaux.weight.to_numpy() / carreaux.weight.sum()
     rural_by_car = rural.groupby("idcar_200m")
     city_by_station = city.groupby("nearest_station")
@@ -137,7 +138,7 @@ def draw_requests(rng, n, rural, carreaux, city, drive_net):
         if drive_net.time(origin.drive_node, destination.drive_node) < MIN_DIRECT_DRIVE:
             nb_rejected += 1
             continue
-        h, (start, end) = draw_time(rng)
+        h, (start, end) = draw_time(rng, period)
         departure = rng.random() < 0.5
         # La fenêtre de 15 min doit tenir dans la période.
         h = min(max(h, start), end - TW_WIDTH) if departure else min(max(h, start + TW_WIDTH), end)
@@ -254,13 +255,24 @@ def main():
         jours.append(f"{day_name} {day} ({date.fromisoformat(day).strftime('%A')})")
     (folder / "jours.txt").write_text("\n".join(jours) + "\n")
 
+    # Une instance se déroule entièrement le matin ou le soir (période tirée au hasard).
     n = args.nb_requetes
+    summary = []
     for k in range(args.nb_instances):
         rng = np.random.default_rng([args.graine, n, k])
-        reqs, nb_rejected = draw_requests(rng, n, rural, carreaux, city, drive_net)
+        period = PERIODS[rng.integers(len(PERIODS))]
+        period_name = "matin" if period[0] < 12 * 60 else "soir"
+        reqs, nb_rejected = draw_requests(rng, n, period, rural, carreaux, city, drive_net)
         lines, walk_t, drive_t = build_instance(reqs, walk_net, drive_net, depot_nodes, station_nodes)
         write_instance(folder, f"{n}_{n}_{k}", n, reqs, lines, walk_t, drive_t, DEPOT, stations)
-        print(f"instance {k} : {nb_rejected} requêtes tirées puis rejetées (< {MIN_DIRECT_DRIVE} min en voiture)")
+        summary.append({"instance": f"{n}_{n}_{k}", "periode": period_name,
+                        "debut": f"{period[0] // 60}h", "fin": f"{period[1] // 60}h"})
+        print(f"instance {k} ({period_name}) : {nb_rejected} requêtes tirées puis rejetées "
+              f"(< {MIN_DIRECT_DRIVE} min en voiture)")
+    summary_file = folder / "instances.csv"
+    old = pd.read_csv(summary_file) if summary_file.exists() else pd.DataFrame(columns=["instance"])
+    pd.concat([old[~old.instance.isin([x["instance"] for x in summary])], pd.DataFrame(summary)]) \
+        .to_csv(summary_file, index=False)
     print(f"{args.nb_instances} instances de {n} requêtes -> {folder}")
 
 

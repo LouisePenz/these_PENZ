@@ -59,7 +59,8 @@ routes principales, 0,9 sur autoroute. On ajoute 2 s par intersection, sauf sur 
   puis un nœud piéton du carreau.
 - Trajet direct en voiture ≥ 10 min, sinon la requête est rejetée et tirée à nouveau.
 - Sens au hasard : entrant (rural → ville) ou sortant (ville → rural).
-- Heure : 7h–11h ou 15h–19h (50/50), dont 25 % dans le pic (8h–8h30, 17h–18h).
+- Période : chaque instance se déroule entièrement le matin (7h–11h) ou le soir (15h–19h), tirée au hasard
+  (`instances.csv`) ; 25 % des requêtes dans le pic (8h–8h30 ou 17h–18h).
 - Fenêtre de 15 min au départ **ou** à l'arrivée (50/50). L'autre fenêtre est déduite pour le format wIDARP
   (temps direct en voiture T, MRT = 2 T + 1).
 - Nombre de personnes : 1, 2 ou 3 (70/20/10 %).

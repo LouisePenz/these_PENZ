@@ -3,7 +3,8 @@
 Affiche, pour l'instance choisie dans le menu : les pickups et deliveries reliés par une ligne pour chaque
 requête, le dépôt, les stations et le tracé des lignes de tram A, B et C (OpenStreetMap). Un clic sur une
 requête (carte ou tableau) donne son détail. Avec une solution de resolution_tc (jour + critère) ou de idarp_algo
-(results/lehavre_rural_idarp/<jour>/sol_<instance>.txt, écrite par main_LNS -sol), chaque requête est tracée
+(results/lehavre_rural_idarp/<jour>/sol_<instance>.txt, écrite par main_LNS -sol, ou solution initiale de
+main_nb_vehicles dans results/lehavre_sol_init/<jour>/), chaque requête est tracée
 selon son trajet : véhicule, bus ou tram, marche, et un symbole à chaque montée ou descente.
 
   .venv/bin/python 05_visualisation.py                 # toutes les instances de lehavre_rural
@@ -29,6 +30,7 @@ from config import DEPOT, INSTANCES_DIR, PREP_DIR, RAW_DIR, ROOT
 
 TC_RESULTS_DIR = ROOT.parent / "results" / "lehavre_rural_tc"   # solutions de resolution_tc
 IDARP_RESULTS_DIR = ROOT.parent / "results" / "lehavre_rural_idarp"   # main_LNS -sol : <jour>/sol_<instance>.txt
+IDARP_INIT_DIR = ROOT.parent / "results" / "lehavre_sol_init"   # main_nb_vehicles -sol : <jour>/sol_init_<instance>.txt
 TC_DAYS = {"scolaire": "lundi scolaire", "vacances": "lundi hors scolaire", "samedi": "samedi"}
 TRAM_RELATIONS = {"A": 2641214, "B": 2641215, "C": 20185321}   # relations OSM "Tram X : terminus -> terminus"
 TRAM_COLORS = {"A": "#d1495b", "B": "#2e86ab", "C": "#5b8c2a"}
@@ -102,16 +104,17 @@ def solutions(instances):
             if f.exists():
                 out.setdefault(f"tc:{day}", {"label": f"TC – {label}", "kind": "tc", "instances": {}})[
                     "instances"][name] = json.loads(f.read_text())["requetes"]
-    files = sorted(IDARP_RESULTS_DIR.glob("*/sol_*.txt"))
+    files = [(f, "idarp", "wIDARP") for f in sorted(IDARP_RESULTS_DIR.glob("*/sol_*.txt"))] + \
+            [(f, "init", "wIDARP initiale") for f in sorted(IDARP_INIT_DIR.glob("*/sol_init_*.txt"))]
     walk_graph = ox.load_graphml(PREP_DIR / "walk.graphml") if files else None
-    for f in files:
+    for f, prefix, label in files:
         sol = solution_idarp.read(f)
         name = sol["instance"][1:-4]
         if name not in instances:
             continue
         mode = "horaires" if sol["pt"][0] == "tram" else "matrice"
-        key = f"idarp:{f.parent.name}"
-        out.setdefault(key, {"label": f"wIDARP – {f.parent.name.replace('_', ' ')} ({mode})", "kind": "idarp",
+        key = f"{prefix}:{f.parent.name}"
+        out.setdefault(key, {"label": f"{label} – {f.parent.name.replace('_', ' ')} ({mode})", "kind": "idarp",
                              "instances": {}})["instances"][name] = solution_idarp.trips_for_map(sol, walk_graph)
     return out
 
