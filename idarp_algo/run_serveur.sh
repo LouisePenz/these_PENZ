@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=20   # = parallel de iraceFolder/scenario.txt (--parallel ci-dessous l'impose)
-#SBATCH --mem=170G
+#SBATCH --mem=8G            # mesuré : ~8 Mo par main_LNS, ~100 Mo par processus R
 #SBATCH --time=3-00:00:00
 #SBATCH --output=irace_%j.out
 
