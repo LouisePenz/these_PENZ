@@ -35,7 +35,14 @@ BINDIR :=bin
 TSTDIR :=tests
 DEPDIR :=.deps
 ## CPOPTIMIZER-RELATED VARIABLES
-CPLEXDIR=/opt/ibm/ILOG/CPLEX_Studio2211
+# CPLEX : l'installation locale si elle existe, sinon celle du serveur (dans le dossier personnel).
+# Pour une autre installation : make CPLEXDIR=/chemin/vers/CPLEX_Studio2211
+CPLEX_LOCAL  :=/opt/ibm/ILOG/CPLEX_Studio2211
+CPLEX_SERVER :=$(HOME)/CPLEX_Studio2211
+CPLEXDIR ?=$(if $(wildcard $(CPLEX_LOCAL)),$(CPLEX_LOCAL),$(CPLEX_SERVER))
+ifeq ($(wildcard $(CPLEXDIR)/cplex/include),)
+$(warning CPLEX introuvable dans $(CPLEXDIR) : make CPLEXDIR=/chemin/vers/CPLEX_Studio2211)
+endif
 CPOPTIMIZERDIR=$(CPLEXDIR)/cpoptimizer
 ### PROGRAM-RELATED VARIABLES
 # Files containing the main() function

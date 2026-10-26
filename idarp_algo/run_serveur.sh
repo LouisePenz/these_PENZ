@@ -3,7 +3,7 @@
 #SBATCH --partition=ls2n
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=30
+#SBATCH --cpus-per-task=20   # = parallel de iraceFolder/scenario.txt (--parallel ci-dessous l'impose)
 #SBATCH --mem=170G
 #SBATCH --time=3-00:00:00
 #SBATCH --output=irace_%j.out

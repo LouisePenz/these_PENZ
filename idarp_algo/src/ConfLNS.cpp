@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <map>
 
 namespace {
@@ -60,7 +61,9 @@ ConfLNS::ConfLNS(const std::string& searchConfigFile, const std::string& instanc
     minimumTimeInTransit_ = std::stoi(instanceConfig.at("minimum_time_in_transport_public"));
     walkThreshold_ = std::stoi(instanceConfig.at("threshold_to_walk"));
     timeLimit_ = std::stoi(instanceConfig.at("time_limit"));
-    iterationLimit_ = std::stoi(instanceConfig.at("iteration_limit"));
+    // No iteration limit if the key is absent or <= 0: the time limit alone stops the LNS.
+    iterationLimit_ = instanceConfig.count("iteration_limit") ? std::stoi(instanceConfig.at("iteration_limit")) : 0;
+    if (iterationLimit_ <= 0) iterationLimit_ = std::numeric_limits<int>::max();
 }
 
 std::string ConfLNS::toString() const {
