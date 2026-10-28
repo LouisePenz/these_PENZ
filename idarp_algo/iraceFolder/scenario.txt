@@ -1,7 +1,7 @@
 parameterFile = "parameters.txt"
-trainInstancesFile = "instances.txt"
+trainInstancesFile = "instances_60.txt"   # instances_30.txt pour le réglage à 30 requêtes
 targetRunner = "target-runner"
 execDir = "."
 maxExperiments = 3000
 parallel = 20
-logFile = "irace.Rdata"
+logFile = "irace_60.Rdata"

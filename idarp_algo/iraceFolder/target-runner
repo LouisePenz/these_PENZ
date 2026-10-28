@@ -1,6 +1,7 @@
 #!/bin/bash
 # Appelé par irace : target-runner <id config> <id instance> <graine> <instance> <paramètres...>
-# Instance : "<jour>/i30_30_<k>.txt" (instances.txt, préfixé par irace d'un dossier sans importance) :
+# Instance : "<jour>/i<n>_<n>_<k>.txt" (instances_30.txt ou instances_60.txt, préfixé par irace d'un dossier
+# sans importance) :
 # instance du jeu d'apprentissage ../../instances/lehavre_rural_irace, en mode horaires des trams du jour
 # (tram_runs_<jour>.txt), avec le nombre de véhicules de la solution initiale de main_nb_vehicles
 # (JEU=irace MODELE=<modèle> ./run_tests.sh 1 : ../../results/lehavre_sol_init_irace/<modèle>/<jour>/).
