@@ -41,13 +41,11 @@ std::map<std::string, std::string> parseKeyValueFile(const std::string& filename
 
 ConfLNS::ConfLNS(const std::string& searchConfigFile, const std::string& instanceConfigFile) {
     std::map<std::string, std::string> searchConfig = parseKeyValueFile(searchConfigFile);
-    percentRequestsRemovedMin_ = std::stoi(searchConfig.at("pourcent_nb_requests_removed_min"));
-    percentRequestsRemovedMax_ = std::stoi(searchConfig.at("pourcent_nb_requests_removed_max"));
-    recordToRecordValue_ = std::stof(searchConfig.at("record_to_record_value"));
-    upperBoundRRT_ = std::stoi(searchConfig.at("upper_bound_RRT"));
-    lowerBoundRRT_ = std::stoi(searchConfig.at("lower_bound_RRT"));
-    rateRRT_ = std::stof(searchConfig.at("rate_RRT"));
-    updateIteration_ = std::stoi(searchConfig.at("update_iteration"));
+    nbRequestsRemovedMin_ = std::stoi(searchConfig.at("nb_requests_removed_min"));
+    nbRequestsRemovedMax_ = std::stoi(searchConfig.at("nb_requests_removed_max"));
+    rrtStartThreshold_ = std::stod(searchConfig.at("rrt_start_threshold"));
+    if (searchConfig.count("rrt_end_threshold"))
+        rrtEndThreshold_ = std::stod(searchConfig.at("rrt_end_threshold"));
     nbPtOptions_ = std::stoi(searchConfig.at("nb_pt_options"));
     if (searchConfig.count("worst_removal_randomness"))
         worstRemovalRandomness_ = std::stod(searchConfig.at("worst_removal_randomness"));
@@ -69,8 +67,8 @@ ConfLNS::ConfLNS(const std::string& searchConfigFile, const std::string& instanc
 std::string ConfLNS::toString() const {
     std::string s = " The LNS is executed until " + std::to_string(timeLimit_);
     s += " seconds or " + std::to_string(iterationLimit_) + " iterations.\n";
-    s += "At each iteration, between " + std::to_string(percentRequestsRemovedMin_);
-    s += " and " + std::to_string(percentRequestsRemovedMax_) + "% of requests are removed.\n";
+    s += "At each iteration, between " + std::to_string(nbRequestsRemovedMin_);
+    s += " and " + std::to_string(nbRequestsRemovedMax_) + " requests are removed.\n";
     return s;
 }
 

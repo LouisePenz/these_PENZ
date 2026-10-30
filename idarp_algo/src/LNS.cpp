@@ -1,5 +1,6 @@
 #include "LNS.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <ostream>
 
@@ -24,13 +25,20 @@ Solution LNS::compute(const Solution& sInit, int timeLimit) {
                                  current.instance().objective() == Objective::RouteTime;
     if (setPartitioning && current.unassignedRequests().empty()) pool_.add(current);
 
-    float recordToRecordValue = conf_->recordToRecordValue();
     int nbRequests = current.instance().nbRequests();
-    int removeMin = nbRequests * conf_->percentRequestsRemovedMin() / 100;
-    int removeMax = nbRequests * conf_->percentRequestsRemovedMax() / 100;
+    int removeMin = std::min(conf_->nbRequestsRemovedMin(), nbRequests);
+    int removeMax = std::min(conf_->nbRequestsRemovedMax(), nbRequests);
     if (removeMax < removeMin) removeMax = removeMin;
     int poolSizeForSetPartitioning = conf_->setPartitioningPoolRatio() / nbRequests;
 
+    // Record-to-record travel threshold (Santini, Ropke & Hvattum 2018):
+    // decreases linearly from rrtStartThreshold to rrtEndThreshold over the
+    // search, measured by the share of the time limit or of the iteration
+    // limit already used, whichever is larger.
+    const double startThreshold = conf_->rrtStartThreshold();
+    const double endThreshold = conf_->rrtEndThreshold();
+    double threshold = startThreshold;
+    const int traceEvery = 100;  // feasible iterations per line of the RRT trace
     int nbIterationsAccepted = 0;
     int nbIterationsFeasible = 0;
     iteration_ = 0;
@@ -52,7 +60,11 @@ Solution LNS::compute(const Solution& sInit, int timeLimit) {
             ++nbIterationsFeasible;
             if (setPartitioning) pool_.add(trial);
 
-            if (trial.objectiveFunction() <= current.objectiveFunction() * (1.0f + recordToRecordValue)) {
+            // Record-to-record travel: compared with the record (the best
+            // solution), not with the current one, so that the current
+            // solution cannot drift away step by step. Accepted if
+            // (f(trial) - f(best)) / f(trial) < threshold.
+            if (trial.objectiveFunction() - best.objectiveFunction() < threshold * trial.objectiveFunction()) {
                 ++nbIterationsAccepted;
                 lastChangeIteration_ = iteration_;
                 current = trial;
@@ -82,13 +94,14 @@ Solution LNS::compute(const Solution& sInit, int timeLimit) {
             pool_.add(best);
         }
 
-        if (conf_->updateIteration() > 0 && nbIterationsFeasible == conf_->updateIteration()) {
-            int acceptedPercent = 100 * nbIterationsAccepted / conf_->updateIteration();
-            if (acceptedPercent > conf_->upperBoundRRT()) {
-                recordToRecordValue /= conf_->rateRRT();
-            } else if (acceptedPercent < conf_->lowerBoundRRT()) {
-                recordToRecordValue *= conf_->rateRRT();
-            }
+        double progress = std::max(secondsSince(start) / timeLimit,
+                                   static_cast<double>(iteration_) / conf_->iterationLimit());
+        threshold = startThreshold - (startThreshold - endThreshold) * std::min(progress, 1.0);
+
+        if (rrtTrace_ && nbIterationsFeasible == traceEvery) {
+            *rrtTrace_ << iteration_ << " " << secondsSince(start) << " "
+                       << 100 * nbIterationsAccepted / traceEvery << " " << threshold << " "
+                       << current.objectiveFunction() << " " << best.objectiveFunction() << "\n";
             nbIterationsAccepted = 0;
             nbIterationsFeasible = 0;
         }

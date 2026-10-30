@@ -1,6 +1,6 @@
 #!/bin/bash
 # Appelé par irace : target-runner <id config> <id instance> <graine> <instance> <paramètres...>
-# Instance : "<jour>/i<n>_<n>_<k>.txt" (instances_30.txt ou instances_60.txt, préfixé par irace d'un dossier
+# Instance : "<jour>/i<n>_<n>_<k>.txt" (instances_<n>.txt avec parameters_<n>.txt, préfixé par irace d'un dossier
 # sans importance) :
 # instance du jeu d'apprentissage ../../instances/lehavre_rural_irace, en mode horaires des trams du jour
 # (tram_runs_<jour>.txt), avec le nombre de véhicules de la solution initiale de main_nb_vehicles
@@ -18,21 +18,13 @@ INSTANCE=$(basename "$INSTANCE_PATH")
 DAY=$(basename "$(dirname "$INSTANCE_PATH")")
 shift 4
 
-pourcent_nb_requests_removed_min=$1
+nb_requests_removed_min=$1
 largeur_requests_removed=$2
-record_to_record_value=$3
-upper_bound_RRT=$4
-ratio_lower_RRT=$5
-rate_RRT=$6
-update_iteration=$7
-nb_pt_options=$8
+rrt_start_threshold=$3
+nb_pt_options=$4
 
-pourcent_nb_requests_removed_max=$(( pourcent_nb_requests_removed_min + largeur_requests_removed ))
-if [ "$pourcent_nb_requests_removed_max" -gt 100 ]; then
-    pourcent_nb_requests_removed_max=100
-fi
-
-lower_bound_RRT=$(awk -v u="$upper_bound_RRT" -v r="$ratio_lower_RRT" 'BEGIN { printf "%d", u * r }')
+# Nombres de requêtes (main_LNS les borne au nombre de requêtes de l'instance)
+nb_requests_removed_max=$(( nb_requests_removed_min + largeur_requests_removed ))
 
 MODELE=${IRACE_MODELE:-widarp}
 case "$MODELE" in
@@ -70,13 +62,9 @@ mkdir -p "$RUN_DIR"
 cd "$RUN_DIR" || exit 1
 
 cat > config.txt <<EOF
-pourcent_nb_requests_removed_min: $pourcent_nb_requests_removed_min
-pourcent_nb_requests_removed_max: $pourcent_nb_requests_removed_max
-record_to_record_value: $record_to_record_value
-upper_bound_RRT: $upper_bound_RRT
-lower_bound_RRT: $lower_bound_RRT
-rate_RRT: $rate_RRT
-update_iteration: $update_iteration
+nb_requests_removed_min: $nb_requests_removed_min
+nb_requests_removed_max: $nb_requests_removed_max
+rrt_start_threshold: $rrt_start_threshold
 nb_pt_options: $nb_pt_options
 EOF
 

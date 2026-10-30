@@ -29,17 +29,14 @@ public:
 
     int timeLimit() const noexcept { return timeLimit_; }
     int iterationLimit() const noexcept { return iterationLimit_; }
-    int percentRequestsRemovedMin() const noexcept { return percentRequestsRemovedMin_; }
-    int percentRequestsRemovedMax() const noexcept { return percentRequestsRemovedMax_; }
+    int nbRequestsRemovedMin() const noexcept { return nbRequestsRemovedMin_; }
+    int nbRequestsRemovedMax() const noexcept { return nbRequestsRemovedMax_; }
     int walkThreshold() const noexcept { return walkThreshold_; }
     int minimumTimeInTransit() const noexcept { return minimumTimeInTransit_; }
     int waitingTime() const noexcept { return waitingTime_; }
 
-    float recordToRecordValue() const noexcept { return recordToRecordValue_; }
-    int updateIteration() const noexcept { return updateIteration_; }
-    float rateRRT() const noexcept { return rateRRT_; }
-    int upperBoundRRT() const noexcept { return upperBoundRRT_; }
-    int lowerBoundRRT() const noexcept { return lowerBoundRRT_; }
+    double rrtStartThreshold() const noexcept { return rrtStartThreshold_; }
+    double rrtEndThreshold() const noexcept { return rrtEndThreshold_; }
     int nbPtOptions() const noexcept { return nbPtOptions_; }
     double worstRemovalRandomness() const noexcept { return worstRemovalRandomness_; }
     double relatedRemovalRandomness() const noexcept { return relatedRemovalRandomness_; }
@@ -47,17 +44,15 @@ public:
 
 private:
     // --- Search parameters (searchConfigFile) ---
-    int percentRequestsRemovedMin_ = 0;
-    int percentRequestsRemovedMax_ = 0;
-    // Acceptance threshold for record-to-record travel (< 1).
-    float recordToRecordValue_ = 0.f;
-    // recordToRecordValue_ is updated every updateIteration_ feasible iterations.
-    int updateIteration_ = 0;
-    // Number of non-improving iterations that triggers an increase of recordToRecordValue_.
-    int upperBoundRRT_ = 0;
-    // Number of improving iterations that triggers a decrease of recordToRecordValue_.
-    int lowerBoundRRT_ = 0;
-    float rateRRT_ = 0.f;
+    // Number of requests removed at each iteration, drawn uniformly between
+    // these bounds (capped by the number of requests of the instance).
+    int nbRequestsRemovedMin_ = 0;
+    int nbRequestsRemovedMax_ = 0;
+    // Record-to-record travel threshold (relative gap to the best solution) at
+    // the start and at the end of the search, linear in between (see LNS).
+    double rrtStartThreshold_ = 0.0;
+    // Optional key, default 0 ("fixed end", Santini, Ropke & Hvattum 2018).
+    double rrtEndThreshold_ = 0.0;
     // Maximum number of PT options kept per request: stop pairs for the
     // 2-vehicle pattern, vehicle-side stops for the walk pattern (see
     // Instance::precomputeAccessOptions).

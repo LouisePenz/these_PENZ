@@ -1,7 +1,8 @@
-parameterFile = "parameters.txt"
-trainInstancesFile = "instances_60.txt"   # instances_30.txt pour le réglage à 30 requêtes
+# Même taille n pour les deux fichiers (30, 60 ou 100 requêtes) : les bornes du nombre de requêtes retirées en dépendent
+parameterFile = "parameters_60.txt"
+trainInstancesFile = "instances_60.txt"
 targetRunner = "target-runner"
 execDir = "."
 maxExperiments = 3000
 parallel = 20
-logFile = "irace_60.Rdata"
+logFile = "irace_60_rrt.Rdata"   # irace_60.Rdata : réglage précédent (seuil adaptatif)

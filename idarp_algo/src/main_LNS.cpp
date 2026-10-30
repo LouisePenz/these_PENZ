@@ -52,6 +52,9 @@ void printHelp() {
     std::cout << "  -sp \"file\"                                                | Optional  | One line per set partitioning\n";
     std::cout << "                                                            |           | run: nb routes, best before,\n";
     std::cout << "                                                            |           | recombined (NA if none)\n";
+    std::cout << "  -rrt \"file\"                                               | Optional  | One line per 100 feasible iterations:\n";
+    std::cout << "                                                            |           | iteration, seconds, % accepted,\n";
+    std::cout << "                                                            |           | RRT threshold, current, best\n";
     std::cout << "  -sol \"file\"                                               | Optional  | Writes the best solution\n";
     std::cout << "                                                            |           | (routes, schedule, mode of\n";
     std::cout << "                                                            |           | each request: Solution::write)\n";
@@ -231,6 +234,11 @@ int main(int argc, char* argv[]) {
     if (getOptionValue(argc, argv, "-sp") != nullptr) {
         spTrace.open(getOptionValue(argc, argv, "-sp"));
         lns.setSetPartitioningTrace(&spTrace);
+    }
+    std::ofstream rrtTrace;
+    if (getOptionValue(argc, argv, "-rrt") != nullptr) {
+        rrtTrace.open(getOptionValue(argc, argv, "-rrt"));
+        lns.setRecordToRecordTrace(&rrtTrace);
     }
     Solution best = lns.compute(sInit, conf.timeLimit()-secondsSince(start));
     best.computeObjectiveFunction();

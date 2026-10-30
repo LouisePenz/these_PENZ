@@ -1,0 +1,5 @@
+# Réglage sur les instances à 30 requêtes (instances_30.txt)
+nb_requests_removed_min          "" i (0,25)
+largeur_requests_removed         "" i (0,20)
+rrt_start_threshold              "" r,log (0.001,0.2)
+nb_pt_options                    "" i (1,40)

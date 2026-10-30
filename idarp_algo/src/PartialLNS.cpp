@@ -1,5 +1,6 @@
 #include "PartialLNS.h"
 
+#include <algorithm>
 #include <cstdlib>
 
 #include "Clock.h"
@@ -30,8 +31,8 @@ Solution PartialLNS::compute(const Instance& instance, int noImprovementLimit, i
     Solution best = current;
 
     int nbRequests = instance.nbRequests();
-    int removeMin = nbRequests * conf_->percentRequestsRemovedMin() / 100;
-    int removeMax = nbRequests * conf_->percentRequestsRemovedMax() / 100;
+    int removeMin = std::min(conf_->nbRequestsRemovedMin(), nbRequests);
+    int removeMax = std::min(conf_->nbRequestsRemovedMax(), nbRequests);
     if (removeMax < removeMin) removeMax = removeMin;
 
     int iterationsSinceChange = 0;

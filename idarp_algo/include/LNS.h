@@ -16,11 +16,11 @@
 // variant used to build an initial solution from empty routes, where some
 // requests may be left unassigned.
 //
-// Acceptance follows record-to-record travel: a repaired solution is
-// accepted if its objective is within (1 + recordToRecordValue) of the
-// current one; recordToRecordValue is itself periodically tightened or
-// loosened every conf.updateIteration() feasible iterations, based on how
-// many of them were accepted (matches ConfLNS's upper/lowerBoundRRT/rateRRT).
+// Acceptance follows linear record-to-record travel (Santini, Ropke &
+// Hvattum 2018): a repaired solution x' is accepted if
+// (f(x') - f(best)) / f(x') < T, with best the record; T decreases linearly
+// from conf.rrtStartThreshold() to conf.rrtEndThreshold() (0 by default,
+// "fixed end") as the time limit or the iteration limit is used up.
 class LNS {
 public:
     // Takes ownership of the destroy/repair operators. Passing a shorter
@@ -54,6 +54,10 @@ public:
     // number of routes, the best objective before the run and the objective
     // found by the run (NA if none). See writeSetPartitioningTrace.
     void setSetPartitioningTrace(std::ostream* trace) noexcept { spTrace_ = trace; }
+    // One line every 100 feasible iterations, if not null (the default):
+    // iteration, seconds, percentage of these 100 iterations accepted,
+    // threshold T, current and best objectives.
+    void setRecordToRecordTrace(std::ostream* trace) noexcept { rrtTrace_ = trace; }
 
 private:
     Destroyer& pickDestroyer();
@@ -68,6 +72,7 @@ private:
     RoutePool pool_;
     std::ostream* log_ = nullptr;
     std::ostream* spTrace_ = nullptr;
+    std::ostream* rrtTrace_ = nullptr;
 };
 
 // The trace line of one set partitioning run: "nbRoutes best recombined",
