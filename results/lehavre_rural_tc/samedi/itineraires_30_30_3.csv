@@ -1,0 +1,91 @@
+instance,requete,critere,sens,type_fenetre,heure_reference,temps_direct_voiture,nb_trajets_pareto,faisable,depart,arrivee,temps_trajet,ratio_direct,marche,correspondances,nb_vehicules,itineraire
+30_30_3,0,temps,entrant,depart,15:46,16,41,True,15:58,16:45,47.0,2.94,20.0,1.0,2.0,marche 13 min | [C3] L. Blériot 16:11 -> Ingouville 16:26 | marche 1 min | [C7] Ingouville 16:28 -> Ste Honorine 16:39 | marche 5 min | marche 1 min
+30_30_3,0,marche,entrant,depart,15:46,16,41,True,15:53,17:13,80.2,5.01,7.0,2.0,3.0,marche 6 min | [C5] Dr Levesque 15:59 -> Dollemard 16:03 | [C5] Dollemard 16:12 -> J. Bourgogne 16:21 | [C3] J. Bourgogne 16:29 -> Graville 17:12 | marche 1 min
+30_30_3,0,transferts,entrant,depart,15:46,16,41,True,15:58,16:57,59.0,3.69,14.0,0.0,1.0,marche 13 min | [C3] L. Blériot 16:11 -> Graville 16:56 | marche 1 min
+30_30_3,1,temps,sortant,arrivee,15:15,12,4,True,14:23,15:00,37.0,3.08,17.0,1.0,2.0,marche 5 min | [C] Les Arts 14:28 -> Cité des Abbesses 14:30 | marche 2 min | [14] Cité des Abbesses 14:33 -> Le Croquet 14:50 | marche 10 min | attente 0 min
+30_30_3,1,marche,sortant,arrivee,15:15,12,4,True,14:21,15:00,39.2,3.27,12.0,2.0,3.0,marche 2 min | [C1] Castors 14:23 -> Belle Etoile 14:28 | [10] Belle Etoile 14:29 -> Ctre Equestre 14:32 | [14] Ctre Equestre 14:38 -> Le Croquet 14:50 | marche 10 min | attente 0 min
+30_30_3,1,transferts,sortant,arrivee,15:15,12,4,True,14:20,15:00,40.0,3.33,28.0,0.0,1.0,marche 18 min | [14] Ctre Equestre 14:38 -> Le Croquet 14:50 | marche 10 min | attente 0 min
+30_30_3,2,temps,entrant,depart,16:44,15,50,True,16:51,17:36,45.0,3.0,24.0,2.0,3.0,marche 3 min | [C4] H. Montlairy 16:54 -> C. Oursel 16:57 | marche 2 min | [C3] C. Oursel 17:03 -> Cronstadt 17:07 | marche 2 min | [C7] Fort ! 17:10 -> Ste Honorine 17:19 | marche 17 min
+30_30_3,2,marche,entrant,depart,16:44,15,50,True,16:51,18:00,69.0,4.6,7.0,2.0,3.0,marche 3 min | [C4] H. Montlairy 16:54 -> George V 17:11 | [C2] George V 17:16 -> A. Barbès 17:34 | [17] A. Barbès 17:50 -> Stade Océane 17:56 | marche 2 min | marche 2 min
+30_30_3,2,transferts,entrant,depart,16:44,15,50,True,16:49,17:54,65.0,4.33,28.0,0.0,1.0,marche 14 min | [C3] C. Oursel 17:03 -> Graville 17:40 | marche 14 min
+30_30_3,3,temps,sortant,depart,15:10,16,0,False,,,,,,,,
+30_30_3,3,marche,sortant,depart,15:10,16,0,False,,,,,,,,
+30_30_3,3,transferts,sortant,depart,15:10,16,0,False,,,,,,,,
+30_30_3,4,temps,sortant,depart,16:06,22,22,True,16:21,17:13,52.2,2.37,24.0,0.0,1.0,marche 19 min | [12] Stade Océane 16:40 -> Hôpital 17:08 | marche 5 min
+30_30_3,4,marche,sortant,depart,16:06,22,22,True,16:17,18:43,146.1,6.64,7.0,3.0,4.0,marche 3 min | [B] St Pierre 16:20 -> Pré Fleuri 16:22 | marche 1 min | [17] Pré Fleuri 16:31 -> Stade Océane 16:44 | [21] Stade Océane 16:53 -> Bois Champion 17:14 | [12] Bois Champion 18:13 -> Le Temple 18:40 | marche 3 min
+30_30_3,4,transferts,sortant,depart,16:06,22,22,True,16:21,17:13,52.2,2.37,24.0,0.0,1.0,marche 19 min | [12] Stade Océane 16:40 -> Hôpital 17:08 | marche 5 min
+30_30_3,5,temps,entrant,arrivee,15:29,12,14,True,14:55,15:22,27.0,2.25,10.0,0.0,1.0,marche 6 min | [C3] L. Blériot 15:01 -> Hôtel de Ville 15:18 | marche 4 min
+30_30_3,5,marche,entrant,arrivee,15:29,12,14,True,14:42,15:22,39.6,3.3,4.0,3.0,4.0,marche 1 min | [C5] Arsenal 14:43 -> Dollemard 14:45 | [C5] Dollemard 14:54 -> J. Bourgogne 15:03 | [C3] J. Bourgogne 15:04 -> G. Lafaurie 15:13 | [C7] G. Lafaurie 15:16 -> Hôtel de la Communauté 15:19 | marche 3 min
+30_30_3,5,transferts,entrant,arrivee,15:29,12,14,True,14:55,15:22,27.0,2.25,10.0,0.0,1.0,marche 6 min | [C3] L. Blériot 15:01 -> Hôtel de Ville 15:18 | marche 4 min
+30_30_3,6,temps,entrant,arrivee,18:45,17,13,True,17:51,18:30,39.0,2.29,12.0,1.0,2.0,marche 7 min | [C3] J. Cocteau 17:58 -> G. Lafaurie 18:06 | marche 2 min | [C7] G. Lafaurie 18:10 -> Caucriauville 18:25 | marche 3 min | attente 2 min
+30_30_3,6,marche,entrant,arrivee,18:45,17,13,True,17:34,18:30,56.1,3.3,7.0,2.0,3.0,marche 4 min | [C5] T. Gautier 17:38 -> Pl. Thiers 17:55 | [C2] Pl. Thiers 17:57 -> Hôtel de Ville 17:59 | [C7] Hôtel de Ville 18:04 -> Caucriauville 18:25 | marche 3 min | attente 2 min
+30_30_3,6,transferts,entrant,arrivee,18:45,17,13,True,17:23,18:36,73.0,4.29,33.0,0.0,1.0,marche 7 min | [C3] J. Cocteau 17:30 -> Graville 18:10 | marche 26 min
+30_30_3,7,temps,sortant,depart,18:24,13,21,True,18:34,19:21,47.8,3.68,18.0,1.0,2.0,marche 13 min | [C7] E. Quinet 18:47 -> P. Faure 18:59 | marche 1 min | [C8] P. Faure 19:01 -> L. Cherubini 19:17 | marche 4 min
+30_30_3,7,marche,sortant,depart,18:24,13,21,True,18:38,19:50,72.5,5.57,7.0,1.0,2.0,marche 3 min | [C2] Soquence 18:41 -> Hôtel de Ville 19:04 | [C8] Hôtel de Ville 19:28 -> L. Cherubini 19:46 | marche 4 min
+30_30_3,7,transferts,sortant,depart,18:24,13,21,True,18:34,19:33,59.6,4.59,52.0,0.0,1.0,marche 13 min | [C7] E. Quinet 18:47 -> Mac Orlan 18:54 | marche 10 min | marche 29 min
+30_30_3,8,temps,sortant,depart,16:04,12,10,True,16:18,16:37,19.3,1.61,5.0,0.0,1.0,marche 3 min | [C1] Hallates 16:21 -> F. Léger 16:35 | marche 2 min
+30_30_3,8,marche,sortant,depart,16:04,12,10,True,16:18,16:37,19.3,1.61,5.0,0.0,1.0,marche 3 min | [C1] Hallates 16:21 -> F. Léger 16:35 | marche 2 min
+30_30_3,8,transferts,sortant,depart,16:04,12,10,True,16:18,16:37,19.3,1.61,5.0,0.0,1.0,marche 3 min | [C1] Hallates 16:21 -> F. Léger 16:35 | marche 2 min
+30_30_3,9,temps,sortant,arrivee,15:38,10,6,True,14:29,15:23,54.0,5.4,7.0,2.0,3.0,marche 1 min | [C] Hôpital J.Monod 14:30 -> Coeur historique 14:35 | marche 2 min | [10] Coeur Historique 14:48 -> Camp Dolent 15:01 | marche 1 min | [14] Camp Dolent 15:05 -> Route du Château 15:17 | marche 3 min | attente 3 min
+30_30_3,9,marche,sortant,arrivee,15:38,10,6,True,14:01,15:23,82.0,8.2,4.0,1.0,2.0,marche 1 min | [C1] Hôpital J. Monod 14:02 -> Ch. de Foire 14:12 | [14] Ch. de Foire 14:24 -> Route du Château 14:39 | marche 3 min | attente 41 min
+30_30_3,9,transferts,sortant,arrivee,15:38,10,6,True,14:28,15:23,55.0,5.5,13.0,1.0,2.0,marche 9 min | [10] Ctre Commercial 14:37 -> Camp Dolent 15:01 | marche 1 min | [14] Camp Dolent 15:05 -> Route du Château 15:17 | marche 3 min | attente 3 min
+30_30_3,10,temps,sortant,depart,15:16,19,22,True,15:31,16:23,51.6,2.71,12.0,2.0,3.0,marche 3 min | [C1] La Plage 15:34 -> Hôtel de Ville 15:43 | [C7] Hôtel de Ville 15:44 -> Ste Honorine 15:58 | marche 6 min | [17] Graville 16:05 -> St Laurent 16:20 | marche 3 min
+30_30_3,10,marche,sortant,depart,15:16,19,22,True,15:30,16:58,87.8,4.62,5.0,2.0,3.0,marche 2 min | [16] Porte Océane 15:32 -> Grand Quai 15:39 | [C2] Grand Quai 15:52 -> A. Barbès 16:16 | [17] A. Barbès 16:38 -> St Laurent 16:55 | marche 3 min
+30_30_3,10,transferts,sortant,depart,15:16,19,22,True,15:22,16:39,77.0,4.05,45.0,0.0,1.0,marche 14 min | [C5] Hôtel de Ville 15:36 -> La Voûte 16:08 | marche 3 min | marche 28 min
+30_30_3,11,temps,sortant,arrivee,17:12,14,12,True,16:03,16:57,54.0,3.86,36.0,0.0,1.0,marche 6 min | [17] Schuman 16:09 -> O'Reilly 16:27 | marche 5 min | marche 25 min
+30_30_3,11,marche,sortant,arrivee,17:12,14,12,True,14:57,16:57,119.7,8.55,13.0,2.0,3.0,marche 3 min | [B] Verlaine 15:00 -> Pré Fleuri 15:09 | marche 1 min | [17] Pré Fleuri 15:19 -> Stade Océane 15:33 | [21] Stade Océane 15:53 -> La Payennière 16:15 | marche 9 min | attente 33 min
+30_30_3,11,transferts,sortant,arrivee,17:12,14,12,True,16:03,16:57,54.0,3.86,36.0,0.0,1.0,marche 6 min | [17] Schuman 16:09 -> O'Reilly 16:27 | marche 5 min | marche 25 min
+30_30_3,12,temps,sortant,arrivee,17:04,21,0,False,,,,,,,,
+30_30_3,12,marche,sortant,arrivee,17:04,21,0,False,,,,,,,,
+30_30_3,12,transferts,sortant,arrivee,17:04,21,0,False,,,,,,,,
+30_30_3,13,temps,entrant,arrivee,18:47,15,11,True,18:07,18:44,36.7,2.45,6.0,1.0,2.0,marche 1 min | [C5] C. Marot 18:08 -> Gares 18:32 | marche 2 min | [C] Gares 18:37 -> Marceau 18:41 | marche 3 min
+30_30_3,13,marche,entrant,arrivee,18:47,15,11,True,17:36,18:46,69.7,4.65,3.0,3.0,4.0,marche 1 min | [C5] C. Marot 17:37 -> J. Bourgogne 17:39 | [C3] J. Bourgogne 17:42 -> Graville 18:25 | [19] Graville 18:28 -> A. Blanqui 18:29 | [C3] A. Blanqui 18:37 -> Marceau 18:44 | marche 2 min
+30_30_3,13,transferts,entrant,arrivee,18:47,15,11,True,17:51,18:36,44.5,2.97,13.0,0.0,1.0,marche 1 min | [C5] C. Marot 17:52 -> Docks Vauban 18:24 | marche 12 min
+30_30_3,14,temps,entrant,depart,18:44,10,13,True,18:49,19:18,28.7,2.87,19.0,0.0,1.0,marche 9 min | [12] Camp Dolent 18:58 -> Stade Océane 19:08 | marche 10 min
+30_30_3,14,marche,entrant,depart,18:44,10,13,True,18:54,20:02,67.8,6.78,7.0,2.0,3.0,marche 5 min | [20] G. Courbet 18:59 -> Pl. Colombier 19:01 | [17] Pl. Colombier 19:22 -> Parc de l'Estuaire 19:26 | [17] Parc de l'Estuaire 19:38 -> Graville 20:00 | marche 2 min
+30_30_3,14,transferts,entrant,depart,18:44,10,13,True,18:49,19:18,28.7,2.87,19.0,0.0,1.0,marche 9 min | [12] Camp Dolent 18:58 -> Stade Océane 19:08 | marche 10 min
+30_30_3,15,temps,sortant,arrivee,15:52,16,11,True,14:26,15:40,74.0,4.62,36.0,2.0,3.0,marche 4 min | [C] Hôpital J.Monod 14:30 -> Coeur historique 14:35 | marche 2 min | [10] Coeur Historique 14:48 -> Camp Dolent 15:01 | marche 1 min | [14] Camp Dolent 15:05 -> Pasteur 15:11 | marche 1 min | marche 28 min
+30_30_3,15,marche,sortant,arrivee,15:52,16,11,True,13:50,15:37,107.2,6.7,28.0,3.0,4.0,[17] J. Monod Sud 13:50 -> Beaulieu Nord 13:51 | [17] Beaulieu Nord 13:55 -> Hôpital J. Monod 13:57 | [C1] Hôpital J. Monod 14:02 -> Ch. de Foire 14:12 | [14] Ch. de Foire 14:24 -> Pasteur 14:45 | marche 28 min | attente 24 min
+30_30_3,15,transferts,sortant,arrivee,15:52,16,11,True,14:23,15:40,77.0,4.81,42.0,1.0,2.0,marche 12 min | [10] J. Monod - La Lézarde 14:35 -> Camp Dolent 15:01 | marche 1 min | [14] Camp Dolent 15:05 -> Pasteur 15:11 | marche 1 min | marche 28 min
+30_30_3,16,temps,entrant,arrivee,16:38,11,7,True,15:36,16:23,47.5,4.31,11.0,1.0,2.0,marche 6 min | [16] J. Cartier 15:42 -> Mt Gaillard 15:45 | [10] Mt Gaillard 15:46 -> F. Engels 16:13 | marche 1 min | marche 4 min | attente 5 min
+30_30_3,16,marche,entrant,arrivee,16:38,11,7,True,15:07,16:23,76.1,6.92,9.0,3.0,4.0,marche 5 min | [16] Bléville Église 15:12 -> Carreau 15:23 | [16] Carreau 15:29 -> Mt Gaillard 15:45 | [10] Mt Gaillard 15:46 -> Ch. de Foire 16:01 | [21] Ch. de Foire 16:02 -> F. Engels 16:15 | marche 4 min | attente 4 min
+30_30_3,16,transferts,entrant,arrivee,16:38,11,7,True,15:33,16:23,49.9,4.53,17.0,0.0,1.0,marche 12 min | [10] Grand Cap 15:45 -> F. Engels 16:13 | marche 1 min | marche 4 min | attente 5 min
+30_30_3,17,temps,entrant,depart,17:29,12,48,True,17:38,18:17,38.4,3.2,33.0,0.0,1.0,marche 12 min | [C7] Fort ! 17:50 -> S. Allende 17:56 | marche 21 min
+30_30_3,17,marche,entrant,depart,17:29,12,48,True,17:34,18:43,68.7,5.73,6.0,3.0,4.0,marche 3 min | [C3] P. Lion 17:37 -> Dr Maire 17:42 | [C3] Dr Maire 17:43 -> Graville 18:25 | [19] Graville 18:28 -> A. Blanqui 18:29 | [C3] A. Blanqui 18:37 -> F. de Grâce 18:40 | marche 3 min
+30_30_3,17,transferts,entrant,depart,17:29,12,48,True,17:38,18:17,38.4,3.2,33.0,0.0,1.0,marche 12 min | [C7] Fort ! 17:50 -> S. Allende 17:56 | marche 21 min
+30_30_3,18,temps,entrant,arrivee,15:52,10,3,True,15:17,15:48,31.0,3.1,21.0,0.0,1.0,marche 16 min | [C] Coeur historique 15:33 -> Parc jardin 15:43 | marche 5 min
+30_30_3,18,marche,entrant,arrivee,15:52,10,3,True,15:06,15:37,31.1,3.11,11.0,0.0,1.0,marche 6 min | [10] La Forge 15:12 -> F. Faure 15:27 | marche 5 min | attente 5 min
+30_30_3,18,transferts,entrant,arrivee,15:52,10,3,True,15:17,15:48,31.0,3.1,21.0,0.0,1.0,marche 16 min | [C] Coeur historique 15:33 -> Parc jardin 15:43 | marche 5 min
+30_30_3,19,temps,entrant,arrivee,18:53,16,15,True,18:00,18:42,41.3,2.58,9.0,1.0,2.0,marche 1 min | [20] Les Charmettes 18:01 -> Gares 18:26 | marche 3 min | [A] Gares 18:31 -> Place Jenner A 18:37 | marche 2 min | marche 3 min
+30_30_3,19,marche,entrant,arrivee,18:53,16,15,True,17:19,18:42,83.1,5.19,2.0,2.0,3.0,marche 1 min | [17] Les Charmettes 17:20 -> Bonsecours 17:41 | [C2] Bonsecours 17:57 -> George V 18:16 | [C1] George V 18:27 -> Patinoire 18:41 | marche 1 min
+30_30_3,19,transferts,entrant,arrivee,18:53,16,15,True,17:56,18:42,46.2,2.89,24.0,0.0,1.0,marche 1 min | [17] Les Charmettes 17:57 -> A. Barbès 18:19 | marche 2 min | marche 21 min
+30_30_3,20,temps,sortant,depart,17:28,11,21,True,17:40,18:10,29.8,2.71,9.0,0.0,1.0,marche 4 min | [C5] G. Brindeau 17:44 -> S. Carnot 18:05 | marche 5 min
+30_30_3,20,marche,sortant,depart,17:28,11,21,True,17:29,18:25,56.2,5.11,4.0,2.0,3.0,marche 2 min | [C3] Pl. Humbert 17:31 -> Graville 17:40 | [19] Graville 17:43 -> A. Blanqui 17:44 | [C3] A. Blanqui 17:52 -> P. Lion 18:23 | marche 2 min
+30_30_3,20,transferts,sortant,depart,17:28,11,21,True,17:40,18:10,29.8,2.71,9.0,0.0,1.0,marche 4 min | [C5] G. Brindeau 17:44 -> S. Carnot 18:05 | marche 5 min
+30_30_3,21,temps,entrant,depart,17:29,18,7,True,17:36,18:20,43.7,2.43,23.0,0.0,1.0,marche 13 min | [12] Centre 17:49 -> Stade Océane 18:10 | marche 3 min | marche 7 min
+30_30_3,21,marche,entrant,depart,17:29,18,7,True,17:36,18:35,58.7,3.26,15.0,2.0,3.0,marche 13 min | [12] Centre 17:49 -> Stade Océane 18:10 | [17] Stade Océane 18:13 -> A. Barbès 18:19 | [C2] A. Barbès 18:23 -> Soquence 18:33 | marche 2 min
+30_30_3,21,transferts,entrant,depart,17:29,18,7,True,17:36,18:20,43.7,2.43,23.0,0.0,1.0,marche 13 min | [12] Centre 17:49 -> Stade Océane 18:10 | marche 3 min | marche 7 min
+30_30_3,22,temps,sortant,arrivee,18:10,17,32,True,16:58,18:08,70.1,4.13,34.0,1.0,2.0,marche 23 min | [C] Coeur historique 17:21 -> Cité des Abbesses 17:30 | marche 2 min | [14] Cité des Abbesses 17:41 -> Patrouille de France 17:59 | marche 9 min
+30_30_3,22,marche,sortant,arrivee,18:10,17,32,True,16:29,18:08,99.1,5.83,11.0,1.0,2.0,marche 2 min | [17] Pré Fleuri 16:31 -> Parc de l'Estuaire 17:05 | [14] Parc de l'Estuaire 17:12 -> Patrouille de France 17:59 | marche 9 min
+30_30_3,22,transferts,sortant,arrivee,18:10,17,32,True,16:19,18:00,101.3,5.96,63.0,0.0,1.0,marche 27 min | [10] P. Doumer 16:46 -> Grand Hameau 17:24 | marche 8 min | marche 28 min
+30_30_3,23,temps,entrant,arrivee,15:15,11,14,True,14:35,15:09,33.6,3.05,24.0,0.0,1.0,marche 2 min | [09] N.-D. des Neiges 14:37 -> A. Barbès 14:47 | marche 22 min
+30_30_3,23,marche,entrant,arrivee,15:15,11,14,True,13:51,15:00,68.6,6.23,5.0,2.0,3.0,marche 2 min | [09] N.-D. des Neiges 13:53 -> Bonsecours 14:01 | [C2] Bonsecours 14:06 -> Hôtel de Ville 14:24 | [C1] Hôtel de Ville 14:27 -> Place Jenner 14:42 | marche 3 min | attente 15 min
+30_30_3,23,transferts,entrant,arrivee,15:15,11,14,True,14:35,15:09,33.6,3.05,24.0,0.0,1.0,marche 2 min | [09] N.-D. des Neiges 14:37 -> A. Barbès 14:47 | marche 22 min
+30_30_3,24,temps,sortant,depart,17:57,14,12,True,17:58,18:50,52.0,3.71,23.0,0.0,1.0,marche 17 min | [14] Grand Hameau 18:15 -> J. Paillette 18:44 | marche 6 min
+30_30_3,24,marche,sortant,depart,17:57,14,12,True,18:05,19:48,102.9,7.35,11.0,4.0,5.0,marche 3 min | [A] Mt Gaillard 18:08 -> Bigne à Fosse 18:11 | marche 1 min | [A] Bigne à Fosse 18:15 -> Rond-Point 18:30 | [B] Rond-Point 18:46 -> Place Jenner B 18:49 | marche 1 min | [C1] Place Jenner 19:03 -> Ch. de Foire 19:27 | [14] Ch. de Foire 19:32 -> J. Paillette 19:42 | marche 6 min
+30_30_3,24,transferts,sortant,depart,17:57,14,12,True,17:58,18:50,52.0,3.71,23.0,0.0,1.0,marche 17 min | [14] Grand Hameau 18:15 -> J. Paillette 18:44 | marche 6 min
+30_30_3,25,temps,sortant,depart,16:04,19,23,True,16:04,16:50,45.9,2.42,9.0,1.0,2.0,marche 6 min | [C] Sainte-Marie 16:10 -> Cité des Abbesses 16:30 | marche 2 min | [14] Cité des Abbesses 16:36 -> A. Salacrou 16:49 | marche 1 min
+30_30_3,25,marche,sortant,depart,16:04,19,23,True,16:13,17:55,101.9,5.36,4.0,3.0,4.0,marche 3 min | [C2] Rond-Point 16:16 -> George V 16:26 | [C1] George V 16:37 -> Ch. de Foire 17:17 | [14] Ch. de Foire 17:29 -> Épaville 17:34 | [14] Épaville 17:36 -> A. Salacrou 17:54 | marche 1 min
+30_30_3,25,transferts,sortant,depart,16:04,19,23,True,16:04,16:50,45.9,2.42,9.0,1.0,2.0,marche 6 min | [C] Sainte-Marie 16:10 -> Cité des Abbesses 16:30 | marche 2 min | [14] Cité des Abbesses 16:36 -> A. Salacrou 16:49 | marche 1 min
+30_30_3,26,temps,entrant,depart,18:19,27,0,False,,,,,,,,
+30_30_3,26,marche,entrant,depart,18:19,27,0,False,,,,,,,,
+30_30_3,26,transferts,entrant,depart,18:19,27,0,False,,,,,,,,
+30_30_3,27,temps,sortant,arrivee,16:41,14,8,True,16:01,16:41,40.0,2.86,13.0,0.0,1.0,marche 3 min | [C3] Marceau 16:04 -> Dr Maire 16:31 | marche 10 min
+30_30_3,27,marche,sortant,arrivee,16:41,14,8,True,15:32,16:26,54.0,3.86,7.0,1.0,2.0,marche 3 min | [C3] Marceau 15:35 -> Pont Vauban 15:44 | [16] Pont Vauban 15:57 -> Carreau 16:17 | marche 4 min | attente 5 min
+30_30_3,27,transferts,sortant,arrivee,16:41,14,8,True,16:01,16:41,40.0,2.86,13.0,0.0,1.0,marche 3 min | [C3] Marceau 16:04 -> Dr Maire 16:31 | marche 10 min
+30_30_3,28,temps,entrant,arrivee,17:32,18,8,True,16:18,17:17,58.7,3.26,9.0,1.0,2.0,marche 3 min | [16] A. Croizat 16:21 -> Mt Gaillard 16:33 | [10] Mt Gaillard 16:47 -> Cité des Abbesses 17:04 | marche 6 min | attente 7 min
+30_30_3,28,marche,entrant,arrivee,17:32,18,8,True,15:17,17:17,120.2,6.68,5.0,3.0,4.0,marche 2 min | [16] A. Croizat 15:19 -> Carreau 15:23 | [16] Carreau 15:29 -> Mt Gaillard 15:45 | [10] Mt Gaillard 15:46 -> Demi-Lieue 16:10 | [10] Demi-Lieue 16:17 -> F. Faure 16:27 | marche 3 min | attente 47 min
+30_30_3,28,transferts,entrant,arrivee,17:32,18,8,True,16:10,17:24,74.2,4.12,14.0,0.0,1.0,marche 8 min | [C1] J. Bart 16:18 -> Cité des Abbesses 17:18 | marche 6 min
+30_30_3,29,temps,entrant,arrivee,16:06,13,11,True,15:29,16:03,34.4,2.64,12.0,1.0,2.0,marche 7 min | [17] Pl. Colombier 15:36 -> A. Blanqui 15:53 | marche 1 min | [C3] A. Blanqui 15:56 -> F. de Grâce 15:59 | marche 4 min
+30_30_3,29,marche,entrant,arrivee,16:06,13,11,True,14:27,15:51,84.4,6.49,6.0,3.0,4.0,marche 2 min | [10] Turgauville 14:29 -> Parc de l'Estuaire 14:34 | [17] Parc de l'Estuaire 14:53 -> A. Barbès 15:20 | [17] A. Barbès 15:26 -> A. Blanqui 15:30 | [C3] A. Blanqui 15:42 -> F. de Grâce 15:45 | marche 4 min | attente 2 min
+30_30_3,29,transferts,entrant,arrivee,16:06,13,11,True,14:58,15:51,53.0,4.08,20.0,0.0,1.0,marche 7 min | [20] Pl. Colombier 15:05 -> Pressensé 15:23 | marche 9 min | marche 4 min | attente 15 min

@@ -1,0 +1,104 @@
+instance i30_30_10.txt
+pt tram tram_runs_lundi_scolaire.txt
+seed 0
+objective 576
+vehicles 4
+routes 5
+route 0 22
+SA 1 70 566
+D 1 4 574
+P 16 33 585
+P 27 55 596
+P 28 57 601
+D 27 56 610
+D 16 34 618
+D 28 58 628
+P 29 59 637
+SB 29 79 641
+SA 0 79 667
+P 18 37 674
+D 0 2 675
+P 14 29 680
+SB 14 72 691
+D 18 38 696
+SA 10 92 704
+D 10 22 720
+P 2 5 727
+SB 2 63 743
+P 11 23 756
+SB 11 66 767
+route 1 14
+SA 13 70 556
+D 13 28 584
+P 9 19 597
+SB 9 87 612
+P 23 47 663
+P 21 43 668
+SB 23 70 690
+D 21 44 715
+P 22 45 726
+SB 22 97 738
+SA 19 97 742
+D 19 40 753
+P 24 49 762
+SB 24 75 769
+route 2 12
+P 6 13 568
+D 6 14 599
+P 5 11 610
+SA 3 76 622
+SB 5 76 623
+D 3 8 631
+SA 29 70 658
+D 29 60 666
+SA 20 70 718
+SA 17 70 719
+D 17 36 735
+D 20 42 740
+route 3 14
+P 7 15 539
+SB 7 66 552
+P 8 17 565
+SB 8 62 582
+P 15 31 598
+SA 4 72 611
+SB 15 72 612
+D 4 10 618
+P 25 51 720
+SB 25 66 735
+P 26 53 751
+SA 12 72 758
+SB 26 70 767
+D 12 26 775
+route 4 0
+requests 30
+0 walk_pickup 0 69 1 656 657 667 79
+1 walk_pickup 0 88 2 560 562 566 70
+2 walk_delivery 0 63 747 753 96 1 754
+3 walk_pickup 2 71 5 601 606 619 76
+4 walk_pickup 3 91 2 589 591 607 72
+5 walk_delivery 2 76 632 634 72 3 637
+6 direct 2
+7 walk_delivery 3 66 555 559 96 5 564
+8 walk_delivery 3 62 584 589 100 4 593
+9 walk_delivery 1 87 613 615 94 4 619
+10 walk_pickup 0 75 3 672 675 698 92
+11 walk_delivery 0 66 772 781 65 1 782
+12 walk_pickup 3 93 4 745 749 757 72
+13 walk_pickup 1 90 4 543 547 556 70
+14 walk_delivery 0 72 694 707 74 4 711
+15 walk_delivery 3 72 614 619 66 5 624
+16 direct 0
+17 walk_pickup 2 73 1 692 693 718 70
+18 direct 0
+19 walk_pickup 1 96 4 729 733 742 97
+20 walk_pickup 2 97 2 697 699 718 70
+21 direct 1
+22 walk_delivery 1 97 742 749 99 5 754
+23 walk_delivery 1 70 699 710 79 4 714
+24 walk_delivery 1 75 770 794 62 3 797
+25 walk_delivery 3 66 742 752 84 3 755
+26 walk_delivery 3 70 770 775 81 5 780
+27 direct 0
+28 direct 0
+29 transfer 0 2 79 70 647 658

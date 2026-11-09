@@ -1,0 +1,198 @@
+instance i60_60_4.txt
+pt tram tram_runs_lundi_hors_scolaire.txt
+model widarp
+seed 0
+objective 1050
+vehicles 6
+objective_type route_time
+route_time 1050
+riding_time 1439
+riding_time_lp 1435
+routes 6
+route 0 18
+P 14 29 47
+P 2 5 54
+D 14 30 64
+SA 29 157 65
+SB 2 157 66
+D 29 60 78
+P 36 73 80
+SB 36 129 93
+P 43 87 107
+D 43 88 119
+P 54 109 130
+SB 54 146 137
+P 7 15 164
+SB 7 126 181
+P 41 83 194
+SA 10 152 196
+D 41 84 212
+D 10 22 219
+route 1 20
+P 12 25 45
+SB 12 130 54
+SA 40 130 55
+D 40 82 66
+SA 35 136 78
+D 35 72 90
+P 55 111 110
+P 51 103 117
+SB 51 146 123
+SB 55 146 124
+SA 1 146 125
+P 58 117 128
+D 58 118 148
+D 1 4 160
+P 25 51 194
+D 25 52 210
+P 16 33 224
+P 38 77 237
+SB 38 136 242
+SB 16 130 250
+route 2 16
+P 3 7 95
+P 42 85 101
+SB 42 132 113
+D 3 8 118
+P 8 17 134
+P 26 53 142
+P 45 91 153
+SB 45 156 165
+D 26 54 172
+D 8 18 179
+P 44 89 192
+SA 23 130 218
+D 44 90 225
+D 23 48 240
+P 18 37 270
+SB 18 139 274
+route 3 16
+SA 46 145 47
+D 46 94 63
+P 28 57 89
+P 33 67 114
+SB 28 152 121
+D 33 68 134
+P 53 107 141
+SB 53 140 148
+P 59 119 152
+SA 21 123 165
+SB 59 123 166
+SA 32 123 167
+D 21 44 175
+D 32 66 191
+P 13 27 258
+SB 13 126 269
+route 4 24
+P 30 61 39
+SB 30 145 58
+P 56 113 67
+D 56 114 90
+SA 4 123 107
+D 4 10 121
+P 22 45 136
+P 39 79 145
+SB 22 130 152
+D 39 80 158
+SA 52 130 164
+D 52 106 173
+SA 19 136 187
+P 31 63 199
+D 19 40 200
+D 31 64 213
+P 15 31 232
+SB 15 134 240
+SA 9 134 242
+D 9 20 252
+P 20 41 283
+P 57 115 285
+SB 20 136 300
+SB 57 136 301
+route 5 26
+P 47 95 43
+SA 17 157 56
+D 47 96 64
+D 17 36 70
+P 34 69 72
+SB 34 141 77
+P 24 49 95
+P 49 99 112
+D 24 50 124
+P 50 101 137
+D 49 100 150
+SB 50 146 152
+SA 5 146 153
+SA 48 146 154
+P 0 1 162
+D 5 12 167
+D 48 98 169
+SA 11 156 188
+D 11 24 200
+D 0 2 213
+P 37 75 236
+SB 37 126 255
+P 6 13 271
+P 27 55 278
+D 6 14 295
+D 27 56 300
+requests 60
+0 direct 5
+1 walk_pickup 1 147 5 97 102 117 146
+2 walk_delivery 0 157 68 73 134 4 77
+3 direct 2
+4 walk_pickup 4 131 4 95 99 107 123
+5 walk_pickup 5 122 3 139 142 153 146
+6 direct 5
+7 walk_delivery 0 126 191 204 157 3 207
+8 direct 2
+9 walk_pickup 4 123 3 221 224 234 134
+10 walk_pickup 0 127 4 186 190 194 152
+11 walk_pickup 5 121 3 167 170 185 156
+12 walk_delivery 1 130 61 65 148 5 70
+13 walk_delivery 3 126 273 280 136 1 281
+14 direct 0
+15 walk_delivery 4 134 241 258 125 5 263
+16 walk_delivery 1 130 252 274 142 5 279
+17 walk_pickup 5 134 2 47 49 54 157
+18 walk_delivery 2 139 275 289 155 4 293
+19 walk_pickup 4 144 5 176 181 184 136
+20 walk_delivery 4 136 303 308 123 3 311
+21 walk_pickup 3 144 3 142 145 153 123
+22 walk_delivery 4 130 157 166 150 1 167
+23 walk_pickup 2 142 3 193 196 217 130
+24 direct 5
+25 direct 1
+26 direct 2
+27 direct 5
+28 walk_delivery 3 152 122 128 147 3 131
+29 walk_pickup 0 134 1 55 56 61 157
+30 walk_delivery 4 145 59 65 140 5 70
+31 direct 4
+32 walk_pickup 3 151 3 151 154 167 123
+33 direct 3
+34 walk_delivery 5 141 78 93 129 3 96
+35 walk_pickup 1 125 2 72 74 76 136
+36 walk_delivery 0 129 97 101 138 5 106
+37 walk_delivery 5 126 262 278 137 2 280
+38 walk_delivery 1 136 243 254 156 1 255
+39 direct 4
+40 walk_pickup 1 150 5 38 43 52 130
+41 direct 0
+42 walk_delivery 2 132 114 122 153 4 126
+43 direct 0
+44 direct 2
+45 walk_delivery 2 156 171 181 129 4 185
+46 walk_pickup 3 133 3 26 29 39 145
+47 direct 5
+48 walk_pickup 5 160 4 143 147 153 146
+49 direct 5
+50 walk_delivery 5 146 162 168 160 2 170
+51 walk_delivery 1 146 126 136 122 3 139
+52 walk_pickup 4 139 5 142 147 157 130
+53 walk_delivery 3 140 150 155 124 5 160
+54 walk_delivery 0 146 138 152 147 3 155
+55 walk_delivery 1 146 126 136 122 5 141
+56 direct 4
+57 walk_delivery 4 136 303 305 132 4 309
+58 direct 1
+59 walk_delivery 3 123 167 172 136 5 177

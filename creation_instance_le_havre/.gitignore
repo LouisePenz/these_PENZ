@@ -1,4 +1,10 @@
 .venv/
-data/
+# Données brutes et préparées (1,6 Go, régénérables par 01_telechargement.py et 02_preparation.py),
+# sauf les fichiers dont la carte (05_visualisation.py) a besoin
+data/raw/*
+!data/raw/communes_cu.geojson
+data/prepared/*
+!data/prepared/tram_stations.geojson
+!data/prepared/tram_lignes.json
+!data/prepared/walk.graphml
 __pycache__/
-GTFS_ligne_C/

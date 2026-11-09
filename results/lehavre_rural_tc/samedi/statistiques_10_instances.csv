@@ -1,0 +1,6 @@
+,temps_trajet,temps_trajet,temps_trajet,temps_trajet,ratio_direct,ratio_direct,ratio_direct,ratio_direct,marche,marche,marche,marche,correspondances,correspondances,correspondances,correspondances
+,mean,median,min,max,mean,median,min,max,mean,median,min,max,mean,median,min,max
+critere,,,,,,,,,,,,,,,,
+temps,46.26,42.95,19.3,116.0,3.08,2.92,1.61,6.1,16.38,14.0,1.0,47.0,0.85,1.0,0.0,2.0
+marche,75.21,69.8,19.3,169.9,5.01,4.76,1.61,11.99,7.98,7.0,0.0,31.0,2.2,2.0,0.0,4.0
+transferts,52.01,48.6,19.3,154.0,3.45,3.22,1.61,7.69,24.33,23.0,2.0,63.0,0.15,0.0,0.0,2.0

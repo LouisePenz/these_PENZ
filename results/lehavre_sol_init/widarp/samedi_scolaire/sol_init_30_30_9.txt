@@ -1,0 +1,103 @@
+instance i30_30_9.txt
+pt tram tram_runs_samedi_scolaire.txt
+seed 0
+objective 593
+vehicles 4
+routes 4
+route 0 16
+P 27 55 40
+P 15 31 48
+SB 27 69 51
+D 15 32 70
+P 12 25 106
+SB 12 92 131
+P 28 57 144
+SB 28 97 157
+SA 20 86 161
+SA 10 86 162
+D 10 22 170
+D 20 42 179
+P 19 39 191
+SB 19 70 199
+P 4 9 257
+SB 4 63 270
+route 1 16
+P 3 7 86
+SB 3 97 99
+SA 18 76 112
+SA 17 76 113
+D 17 36 120
+P 11 23 134
+D 18 38 137
+SB 11 63 150
+SA 0 63 154
+D 0 2 161
+P 6 13 173
+D 6 14 190
+SA 14 69 240
+D 14 30 246
+SA 7 92 261
+D 7 16 272
+route 2 14
+P 25 51 102
+SB 25 70 110
+P 29 59 129
+SB 29 73 137
+SA 23 97 141
+P 8 17 152
+D 23 48 158
+SB 8 72 172
+SA 26 72 173
+D 26 54 186
+SA 9 72 237
+D 9 20 247
+SA 1 84 259
+D 1 4 266
+route 3 16
+P 21 43 31
+D 21 44 60
+P 24 49 88
+SB 24 70 105
+SA 16 70 108
+D 16 34 120
+P 0 1 134
+SB 0 91 138
+P 22 45 156
+SB 22 92 174
+SA 13 76 182
+D 13 28 188
+SA 5 76 194
+D 5 12 208
+SA 2 92 224
+D 2 6 243
+requests 30
+0 transfer 3 1 91 63 141 154
+1 walk_pickup 2 78 0 230 230 258 84
+2 walk_pickup 3 100 1 220 221 223 92
+3 walk_delivery 1 97 107 109 91 4 113
+4 walk_delivery 0 63 272 293 61 5 298
+5 walk_pickup 3 96 2 178 180 191 76
+6 direct 1
+7 walk_pickup 1 87 2 253 255 261 92
+8 walk_delivery 2 72 173 178 66 5 183
+9 walk_pickup 2 76 5 230 235 237 72
+10 walk_pickup 0 62 4 143 147 158 86
+11 walk_delivery 1 63 154 161 65 5 166
+12 walk_delivery 0 92 143 145 62 4 149
+13 walk_pickup 3 74 5 155 160 175 76
+14 walk_pickup 1 71 3 229 232 240 69
+15 direct 0
+16 walk_pickup 3 80 2 99 101 108 70
+17 walk_pickup 1 96 5 95 100 111 76
+18 walk_pickup 1 84 4 100 104 107 76
+19 walk_delivery 0 70 200 214 85 4 218
+20 walk_pickup 0 87 2 141 143 158 86
+21 direct 3
+22 walk_delivery 3 92 181 203 75 1 204
+23 walk_pickup 2 61 1 132 133 139 97
+24 walk_delivery 3 70 120 122 64 5 127
+25 walk_delivery 2 70 120 122 64 1 123
+26 walk_pickup 2 93 4 161 165 173 72
+27 walk_delivery 0 69 57 65 98 4 69
+28 walk_delivery 0 97 159 165 61 5 170
+29 walk_delivery 2 73 141 165 87 3 168

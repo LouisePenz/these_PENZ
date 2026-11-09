@@ -1,0 +1,2 @@
+agency_id,agency_name,agency_url,agency_timezone,agency_lang,agency_phone,agency_fare_url
+LIA,LIA,https://www.transports-lia.fr,Europe/Paris,fr,02 35 22 35 00,

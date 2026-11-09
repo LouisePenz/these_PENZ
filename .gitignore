@@ -14,3 +14,12 @@ idarp_algo/backup_*/
 
 # Archives
 *.zip
+
+# Éditeur
+.vscode/
+
+# Journaux de SLURM / irace
+idarp_algo/irace_*.out
+
+# Carte générée par 05_visualisation.py (6 Mo, données incluses)
+instances/*/visualisation.html

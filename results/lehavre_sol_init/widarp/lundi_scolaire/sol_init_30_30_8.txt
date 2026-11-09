@@ -1,0 +1,105 @@
+instance i30_30_8.txt
+pt tram tram_runs_lundi_scolaire.txt
+seed 0
+objective 537
+vehicles 4
+routes 4
+route 0 16
+P 27 55 521
+SB 27 63 536
+SA 3 86 639
+D 3 8 647
+P 24 49 666
+SB 24 94 673
+P 6 13 677
+SB 6 79 686
+P 28 57 700
+SB 28 97 712
+SA 23 97 713
+D 23 48 725
+P 10 21 737
+P 22 45 748
+SB 10 86 758
+SB 22 97 763
+route 1 12
+SA 16 70 576
+D 16 34 592
+SA 13 72 637
+D 13 28 654
+SA 5 70 673
+D 5 12 682
+SA 6 70 698
+D 6 14 706
+P 15 31 718
+SB 15 72 731
+SA 26 72 737
+D 26 54 750
+route 2 18
+P 4 9 516
+SA 19 66 531
+SB 4 66 532
+D 19 40 544
+P 18 37 568
+P 20 41 577
+SB 20 79 582
+SB 18 97 587
+SA 17 86 595
+P 14 29 597
+D 17 36 606
+D 14 30 618
+SA 29 92 637
+D 29 60 654
+P 7 15 674
+SB 7 66 692
+SA 1 100 699
+D 1 4 709
+route 3 18
+P 21 43 613
+P 9 19 619
+SB 9 63 631
+SB 21 94 639
+SA 12 94 651
+D 12 26 661
+P 0 1 669
+P 11 23 684
+P 8 17 685
+SB 0 86 686
+SA 25 86 688
+SA 24 86 689
+D 24 50 697
+D 25 52 700
+D 8 18 704
+D 11 24 712
+P 2 5 720
+SB 2 97 733
+requests 30
+0 walk_delivery 3 86 688 691 89 5 696
+1 walk_pickup 2 68 4 688 692 695 100
+2 walk_delivery 3 97 742 751 98 1 752
+3 walk_pickup 0 97 4 630 634 639 86
+4 walk_delivery 2 66 541 543 63 4 547
+5 walk_pickup 1 64 5 661 666 668 70
+6 transfer 0 1 79 70 688 698
+7 walk_delivery 2 66 702 712 84 2 714
+8 direct 3
+9 walk_delivery 3 63 637 647 74 5 652
+10 walk_delivery 0 86 759 769 62 5 774
+11 direct 3
+12 walk_pickup 3 92 3 644 647 651 94
+13 walk_pickup 1 61 4 609 613 637 72
+14 direct 2
+15 walk_delivery 1 72 734 739 66 5 744
+16 walk_pickup 1 73 5 547 552 576 70
+17 walk_pickup 2 100 2 587 589 595 86
+18 walk_delivery 2 97 589 594 74 5 599
+19 walk_pickup 2 96 4 523 527 531 66
+20 walk_delivery 2 79 587 602 95 2 604
+21 walk_delivery 3 94 641 643 87 5 648
+22 walk_delivery 0 97 769 774 74 3 777
+23 walk_pickup 0 100 1 701 702 713 97
+24 transfer 0 3 94 86 674 688
+25 walk_pickup 3 92 2 677 679 688 86
+26 walk_pickup 1 66 5 727 732 737 72
+27 walk_delivery 0 63 543 548 76 2 550
+28 walk_delivery 0 97 719 726 71 3 729
+29 walk_pickup 2 100 2 633 635 637 92

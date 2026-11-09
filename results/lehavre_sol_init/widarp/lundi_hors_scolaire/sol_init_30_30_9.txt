@@ -1,0 +1,105 @@
+instance i30_30_9.txt
+pt tram tram_runs_lundi_hors_scolaire.txt
+seed 0
+objective 570
+vehicles 4
+routes 4
+route 0 16
+SA 15 79 61
+D 15 32 73
+P 3 7 83
+SB 3 69 96
+P 24 49 106
+SB 24 79 119
+P 28 57 146
+SA 23 97 159
+SB 28 97 160
+SA 20 86 165
+D 23 48 176
+D 20 42 184
+P 19 39 196
+SB 19 70 204
+SA 9 72 245
+D 9 20 255
+route 1 18
+P 16 33 89
+D 16 34 104
+SA 18 76 113
+SA 17 76 114
+D 17 36 121
+D 18 38 133
+P 11 23 142
+P 8 17 148
+P 6 13 157
+SB 11 76 170
+SB 6 76 171
+SA 13 66 177
+D 8 18 179
+D 13 28 191
+SA 1 84 247
+D 1 4 254
+SA 7 94 271
+D 7 16 282
+route 2 14
+P 27 55 38
+SB 27 91 49
+P 12 25 106
+SB 12 87 130
+P 22 45 148
+SB 22 70 166
+SA 26 72 174
+D 26 54 187
+P 2 5 233
+SB 2 79 242
+SA 14 69 252
+D 14 30 258
+SA 4 69 272
+D 4 10 277
+route 3 16
+P 21 43 31
+D 21 44 60
+P 25 51 103
+SB 25 70 111
+P 29 59 128
+SB 29 73 136
+SA 0 97 140
+D 0 2 155
+SA 10 86 165
+D 10 22 173
+SA 5 72 186
+D 5 12 201
+P 4 9 244
+SB 4 70 251
+SA 2 70 253
+D 2 6 258
+requests 30
+0 walk_pickup 3 98 3 128 131 140 97
+1 walk_pickup 1 78 0 219 219 247 84
+2 transfer 2 3 79 70 243 253
+3 walk_delivery 0 69 103 106 91 4 110
+4 transfer 3 2 70 69 252 272
+5 walk_pickup 3 96 2 171 173 182 72
+6 walk_delivery 1 76 172 185 71 5 190
+7 walk_pickup 1 87 2 267 269 271 94
+8 direct 1
+9 walk_pickup 0 76 5 238 243 245 72
+10 walk_pickup 3 62 4 150 154 165 86
+11 walk_delivery 1 76 172 174 65 5 179
+12 walk_delivery 2 87 138 142 62 4 146
+13 walk_pickup 1 74 5 164 169 177 66
+14 walk_pickup 2 71 3 241 244 252 69
+15 walk_pickup 0 82 3 48 51 61 79
+16 direct 1
+17 walk_pickup 1 96 5 96 101 112 76
+18 walk_pickup 1 84 4 105 109 112 76
+19 walk_delivery 0 70 205 219 85 4 223
+20 walk_pickup 0 87 2 148 150 165 86
+21 direct 3
+22 walk_delivery 2 70 169 196 75 1 197
+23 walk_pickup 0 61 1 145 146 152 97
+24 walk_delivery 0 79 123 131 64 5 136
+25 walk_delivery 3 70 121 123 64 1 124
+26 walk_pickup 2 93 4 158 162 170 72
+27 walk_delivery 2 91 52 63 98 4 67
+28 walk_delivery 0 97 168 174 61 5 179
+29 walk_delivery 3 73 140 164 87 3 167

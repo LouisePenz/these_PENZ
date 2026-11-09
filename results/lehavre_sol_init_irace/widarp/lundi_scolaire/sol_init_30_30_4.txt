@@ -1,0 +1,114 @@
+instance i30_30_4.txt
+pt tram tram_runs_lundi_scolaire.txt
+seed 0
+objective 599
+vehicles 5
+routes 5
+route 0 14
+SA 2 70 576
+D 2 6 590
+SA 29 76 602
+D 29 60 608
+P 16 33 644
+SB 16 65 649
+SA 22 65 651
+D 22 46 657
+P 20 41 670
+P 26 53 689
+SB 26 97 697
+SA 27 97 698
+SB 20 97 699
+D 27 56 710
+route 1 16
+P 4 9 508
+P 18 37 528
+SB 4 76 544
+P 10 21 556
+SB 10 68 569
+D 18 38 574
+P 24 49 655
+P 13 27 672
+SB 13 63 683
+SA 9 63 684
+SB 24 63 685
+D 9 20 697
+P 0 1 703
+SB 0 66 716
+SA 26 76 722
+D 26 54 738
+route 2 14
+P 11 23 640
+SB 11 69 649
+P 9 19 659
+SB 9 97 667
+SA 16 69 673
+SA 25 69 674
+D 16 34 680
+D 25 52 688
+P 19 39 695
+SB 19 86 707
+P 12 25 722
+SA 1 70 730
+D 1 4 745
+D 12 26 759
+route 3 14
+P 6 13 611
+P 22 45 616
+SA 15 69 623
+SB 6 69 624
+SB 22 69 625
+D 15 32 636
+P 14 29 639
+SB 14 86 647
+P 17 35 665
+SA 21 97 674
+SB 17 97 675
+D 21 44 692
+P 3 7 705
+SB 3 70 713
+route 4 14
+P 28 57 519
+D 28 58 546
+P 23 47 607
+SB 23 62 624
+P 5 11 667
+P 8 17 679
+SB 8 96 693
+SB 5 98 697
+SA 13 61 708
+D 13 28 709
+SA 3 69 739
+D 3 8 742
+SA 7 69 790
+D 7 16 806
+requests 30
+0 walk_delivery 1 66 719 728 83 4 732
+1 walk_pickup 2 88 2 722 724 727 70
+2 walk_pickup 0 64 5 569 574 576 70
+3 transfer 3 4 70 69 719 739
+4 walk_delivery 1 76 548 550 72 5 555
+5 walk_delivery 4 98 700 703 61 2 705
+6 walk_delivery 3 69 628 642 66 2 644
+7 walk_pickup 4 81 3 772 775 790 69
+8 walk_delivery 4 96 703 712 97 4 716
+9 transfer 2 1 97 63 669 684
+10 walk_delivery 1 68 570 582 87 3 585
+11 walk_delivery 2 69 658 668 96 3 671
+12 direct 2
+13 transfer 1 4 63 61 687 708
+14 walk_delivery 3 86 649 652 68 0 652
+15 walk_pickup 3 71 5 610 615 623 69
+16 transfer 0 2 65 69 650 673
+17 walk_delivery 3 97 682 688 61 4 692
+18 direct 1
+19 walk_delivery 2 86 708 715 69 1 716
+20 walk_delivery 0 97 702 708 61 5 713
+21 walk_pickup 3 67 1 662 663 673 97
+22 transfer 3 0 69 65 628 651
+23 walk_delivery 4 62 626 628 92 5 633
+24 walk_delivery 1 63 687 698 83 4 702
+25 walk_pickup 2 99 3 659 662 668 69
+26 transfer 0 1 97 76 699 719
+27 walk_pickup 0 83 1 687 688 692 97
+28 direct 4
+29 walk_pickup 0 66 5 586 591 598 76

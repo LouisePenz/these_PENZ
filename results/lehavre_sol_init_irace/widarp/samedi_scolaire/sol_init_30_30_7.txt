@@ -1,0 +1,105 @@
+instance i30_30_7.txt
+pt tram tram_runs_samedi_scolaire.txt
+seed 0
+objective 576
+vehicles 4
+routes 4
+route 0 16
+P 21 43 60
+SB 21 70 75
+SA 3 72 93
+D 3 8 106
+SA 27 66 120
+D 27 56 124
+P 25 51 147
+SA 2 66 168
+SB 25 72 172
+D 2 6 179
+P 10 21 213
+P 4 9 220
+SB 4 66 238
+SB 10 70 247
+P 1 3 255
+SB 1 95 264
+route 1 20
+P 20 41 103
+P 29 59 107
+P 7 15 117
+SB 20 81 121
+SB 7 81 122
+P 16 33 131
+D 29 60 135
+P 2 5 148
+SB 2 97 150
+SB 16 97 151
+P 0 1 155
+SA 5 86 158
+D 5 12 166
+D 0 2 173
+SA 14 72 189
+D 14 30 208
+P 22 45 214
+SB 22 81 219
+SA 18 70 222
+D 18 38 236
+route 2 12
+P 19 39 73
+SB 19 86 85
+SA 6 86 94
+D 6 14 109
+P 26 53 134
+SB 26 92 148
+SA 13 76 159
+D 13 28 167
+P 24 49 192
+SB 24 70 207
+P 9 19 230
+SB 9 92 252
+route 3 16
+P 17 35 36
+SB 17 69 48
+SA 28 69 74
+D 28 58 86
+P 8 17 89
+SB 8 86 99
+SA 11 97 104
+D 11 24 110
+SA 7 69 140
+D 7 16 145
+P 12 25 167
+SB 12 69 192
+P 15 31 211
+SB 15 71 223
+SA 23 71 264
+D 23 48 274
+requests 30
+0 direct 1
+1 walk_delivery 0 95 267 271 82 2 273
+2 transfer 1 0 97 66 155 168
+3 walk_pickup 0 63 2 88 90 93 72
+4 walk_delivery 0 66 248 250 63 5 255
+5 walk_pickup 1 87 3 140 143 158 86
+6 walk_pickup 2 92 3 82 85 94 86
+7 transfer 1 3 81 69 125 140
+8 walk_delivery 3 86 103 113 62 4 117
+9 walk_delivery 2 92 261 282 95 5 287
+10 walk_delivery 0 70 248 253 81 5 258
+11 walk_pickup 3 62 4 79 83 99 97
+12 walk_delivery 3 69 201 210 79 5 215
+13 walk_pickup 2 66 5 147 152 159 76
+14 walk_pickup 1 65 3 182 185 189 72
+15 walk_delivery 3 71 226 229 93 4 233
+16 walk_delivery 1 97 155 160 74 4 164
+17 walk_delivery 3 69 57 62 61 5 67
+18 walk_pickup 1 64 3 215 218 220 70
+19 walk_delivery 2 86 87 99 94 5 104
+20 walk_delivery 1 81 125 127 80 3 130
+21 walk_delivery 0 70 88 90 64 2 92
+22 walk_delivery 1 81 221 234 97 3 237
+23 walk_pickup 3 72 2 251 253 264 71
+24 walk_delivery 2 70 216 220 88 1 221
+25 walk_delivery 0 72 173 187 83 5 192
+26 walk_delivery 2 92 149 166 82 5 171
+27 walk_pickup 0 61 0 101 101 120 66
+28 walk_pickup 3 78 2 68 70 74 69
+29 direct 1

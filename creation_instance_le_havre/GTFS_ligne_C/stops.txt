@@ -1,0 +1,20 @@
+stop_id,stop_code,stop_name,stop_lat,stop_lon,location_type,parent_station,wheelchair_boarding
+C23,,Parc jardin,49.545982,0.197718,,,1
+C24,,Cité des Abbesses,49.542963,0.188958,,,1
+C25,,Les Arts,49.534739,0.181314,,,1
+C26,,Hôpital J.Monod,49.526784,0.186206,,,1
+C27,,Beaulieu,49.511296,0.189698,,,1
+C28,,Coeur historique,49.505017,0.195407,,,1
+C29,,Soquence,49.500711,0.178206,,,1
+C30,,Stade Océane,49.500934,0.17127,,,1
+C31,,Graville,49.500084,0.161618,,,1
+C32,,Jaurès,49.498875,0.152068,,,1
+C33,,Parc F.Mitterand,49.498054,0.143107,,,1
+C34,,Sainte-Marie,49.497654,0.136368,,,1
+C7,,Université,49.49619,0.127048,,,1
+C12,,Gares,49.492436,0.124116,,,1
+C35,,Les Docks,49.49004,0.133791,,,1
+C36,,Marceau,49.485574,0.137336,,,1
+C37,,Amiral Mouchez,49.487126,0.143214,,,1
+C38,,Valmy,49.491285,0.145218,,,1
+C39,,Vallée Béreult,49.493553,0.15223,,,1
