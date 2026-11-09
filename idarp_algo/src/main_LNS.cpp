@@ -61,8 +61,6 @@ void printHelp() {
     std::cout << "  -check                                                    | Optional  | Check the initial and best\n";
     std::cout << "                                                            |           | solutions (SolutionChecker),\n";
     std::cout << "                                                            |           | report on stderr\n";
-    std::cout << "\nNot yet supported by this rewrite (see comments in main_LNS.cpp):\n";
-    std::cout << "  -sn / -sinit / -slns / -history\n";
 }
 
 bool hasFlag(int argc, char* argv[], const std::string& flag) {
@@ -200,9 +198,6 @@ int main(int argc, char* argv[]) {
     // Stage 1: build an initial solution from empty routes, tolerating
     // unassigned requests along the way. Stages 1 and 2 share the same
     // conf.timeLimit() budget, measured from here.
-    //
-    // NOTE: -sinit (loading a pre-built initial solution from file) isn't
-    // wired in -- Solution has no file reader yet.
     TimePoint start = now();
     PartialLNS partialLns(conf, makeDestroyers(conf), makeRepairersRandom());
     Solution sInit = partialLns.compute(instance);
@@ -223,11 +218,8 @@ int main(int argc, char* argv[]) {
         objectiveFile << static_cast<long long>(instance.nbRequests()) * instance.horizonTime() << std::endl;
         return 0;
     }
-    //std::cout << "Initial solution: " << sInit.unassignedRequests().size() << " unassigned request(s), objective "
-    //          << sInit.objectiveFunction() << " (" << partialLns.lastIteration() << " iteration(s))\n";
 
     // Stage 2: improve it, requiring every request to stay assigned.
-    //std::cout << "Optimizing...\n";
     LNS lns(conf, makeDestroyers(conf), makeRepairers());
     lns.setLog(check ? &std::cerr : nullptr);
     std::ofstream spTrace;
@@ -267,19 +259,6 @@ int main(int argc, char* argv[]) {
         }
         if (recombined.objectiveFunction() < best.objectiveFunction()) best = recombined;
     }
-    /*std::cout << "Best solution: " << best.unassignedRequests().size() << " unassigned request(s), objective "
-              << best.objectiveFunction() << " (" << lns.lastIteration() << " iteration(s), last change at "
-              << lns.lastChangeIteration() << ")\n";*/
-
-    // NOTE: -slns (per-iteration step log) and -history (every accepted
-    // solution) aren't wired in -- LNS doesn't record that history yet
-    // (the old list_time/list_removal_operators/... bookkeeping was dropped
-    // when LNS was rewritten; add it back to LNS if you want it here).
-    /*if (getOptionValue(argc, argv, "-sres") != nullptr) {
-        std::cout << "\n-sres isn't wired to a file writer yet (Solution has none) -- printing instead:\n";
-        best.print();
-    }*/
-
     if (getOptionValue(argc, argv, "-sol") != nullptr) {
         const char* tram = getOptionValue(argc, argv, "-tram");
         best.writeFile(getOptionValue(argc, argv, "-sol"),

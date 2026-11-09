@@ -52,7 +52,6 @@ public:
         return publicTransportTime_[sb * nbStops_ + (stopAfter - firstPtStop_)] + waitingTime_;
     }
 
-    int waitingTime() const noexcept { return waitingTime_; }
     int minimumTimeInTransit() const noexcept { return minimumTimeInTransit_; }
     int walkThreshold() const noexcept { return walkThreshold_; }
 

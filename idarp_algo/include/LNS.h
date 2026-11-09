@@ -37,8 +37,6 @@ public:
     // request that repair itself doesn't touch).
     Solution compute(const Solution& sInit, int timeLimit = -1);
 
-    int lastIteration() const noexcept { return iteration_; }
-    int lastChangeIteration() const noexcept { return lastChangeIteration_; }
     // The routes of the complete solutions met by compute() -- sInit and
     // every feasible repaired solution, accepted or not -- since the last set
     // partitioning: each time the pool reaches
@@ -68,7 +66,6 @@ private:
     std::vector<std::unique_ptr<Repairer>> repairers_;
 
     int iteration_ = 0;
-    int lastChangeIteration_ = 0;
     RoutePool pool_;
     std::ostream* log_ = nullptr;
     std::ostream* spTrace_ = nullptr;

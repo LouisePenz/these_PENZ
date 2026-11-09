@@ -1,7 +1,5 @@
 #include "Request.h"
 
-#include <iostream>
-
 Request::Request(int pickupId, TimeWindow pickupWindow, int deliveryId, TimeWindow deliveryWindow,
                   int quantity, int maxRideTime, int loadingTime)
     : pickupId_(pickupId),
@@ -11,59 +9,3 @@ Request::Request(int pickupId, TimeWindow pickupWindow, int deliveryId, TimeWind
       quantity_(quantity),
       maxRideTime_(maxRideTime),
       loadingTime_(loadingTime) {}
-
-std::string Request::toString() const {
-    std::string str;
-    str += std::to_string(pickupId_) + "[" + std::to_string(pickupWindow_.lowerBound) + "," +
-           std::to_string(pickupWindow_.upperBound) + "] ";
-    str += std::to_string(deliveryId_) + "[" + std::to_string(deliveryWindow_.lowerBound) + "," +
-           std::to_string(deliveryWindow_.upperBound) + "] ";
-    str += std::to_string(maxRideTime_) + "\n";
-    return str;
-}
-
-void Request::print() const {
-    std::cout << "   Pickup at index " << pickupId_ << ", time window [" << pickupWindow_.lowerBound
-              << ";" << pickupWindow_.upperBound << "]\n";
-    std::cout << "   Delivery at index " << deliveryId_ << ", time window [" << deliveryWindow_.lowerBound
-              << ";" << deliveryWindow_.upperBound << "]\n";
-    std::cout << "   Service time " << loadingTime_ << "\n";
-    std::cout << "   Quantity " << quantity_ << "\n";
-    std::cout << "   Maximum riding time " << maxRideTime_ << "\n";
-
-    if (!ptAccess_.available()) {
-        std::cout << "   The request cannot take public transportation\n";
-    } else {
-        std::cout << "   Stop pairs (before -> after):\n";
-        for (const StopPair& p : ptAccess_.pairs()) {
-            std::cout << "      " << p.stopBefore << " [" << p.windowBefore.lowerBound << ";"
-                      << p.windowBefore.upperBound << "] -> " << p.stopAfter << " [" << p.windowAfter.lowerBound
-                      << ";" << p.windowAfter.upperBound << "], PT " << p.ptTravelTime
-                      << ", leg max ride times " << p.maxRideTimeFirstLeg << " / " << p.maxRideTimeLastLeg << "\n";
-        }
-    }
-
-    switch (walkAccess_.side()) {
-        case WalkSide::None:
-            std::cout << "   The request cannot walk\n";
-            break;
-        case WalkSide::AtPickup:
-        case WalkSide::AtDelivery: {
-            std::cout << "   The request can walk on the "
-                      << (walkAccess_.side() == WalkSide::AtPickup ? "first" : "last") << " leg\n";
-            std::cout << "   Its walk time is " << walkAccess_.walkTime() << "\n";
-            std::cout << "   The nearest stop is " << walkAccess_.nearestStop() << "\n";
-            std::cout << "   The complementary stops are ";
-            for (auto s : walkAccess_.complementaryStops()) std::cout << s << " ";
-            std::cout << "\n";
-            auto w = walkAccess_.aggregateWindow();
-            std::cout << "   The largest time window is [" << w.lowerBound << ";" << w.upperBound << "]\n";
-            for (auto s : walkAccess_.complementaryStops()) {
-                auto sw = walkAccess_.windowForStop(s);
-                std::cout << "      " << s << ": [" << sw.lowerBound << ";" << sw.upperBound
-                          << "], vehicle leg max ride time " << walkAccess_.maxRideTimeForStop(s) << "\n";
-            }
-            break;
-        }
-    }
-}

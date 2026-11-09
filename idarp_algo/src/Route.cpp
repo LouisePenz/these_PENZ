@@ -3,12 +3,8 @@
 #include <algorithm>
 #include <cassert>
 
-Route::Route(int vehicleId, int capacity, int depotPointId, int depotDeparture, int depotReturnDeadline)
-    : vehicleId_(vehicleId),
-      capacity_(capacity),
-      depotPointId_(depotPointId),
-      depotDeparture_(depotDeparture),
-      depotReturnDeadline_(depotReturnDeadline) {}
+Route::Route(int capacity, int depotPointId, int depotReturnDeadline)
+    : capacity_(capacity), depotPointId_(depotPointId), depotReturnDeadline_(depotReturnDeadline) {}
 
 void Route::insertStop(int position, RouteStop stop) {
     assert(position >= 0 && position <= size());
@@ -28,8 +24,6 @@ void Route::recomputeLoad() {
         loadAfterStop_[i] = running;
     }
 }
-
-int Route::loadAfter(int position) const { return loadAfterStop_[position]; }
 
 bool Route::hasFreeCapacity(int posFrom, int posTo, int extraLoad) const {
     for (int i = posFrom; i <= posTo; ++i) {

@@ -15,7 +15,6 @@ bool RandomRepair::apply(Solution& solution, bool allowPartial) {
     }
 
     for (int requestId : pending) {
-        //std::cout << "request: " << requestId << "\n";
         auto candidates = search_.findInsertions(solution, requestId, 1);
         if (candidates.empty()) {
             if (!allowPartial) return false;

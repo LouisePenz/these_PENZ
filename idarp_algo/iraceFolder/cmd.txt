@@ -1,2 +1,0 @@
-$(Rscript -e "library(irace); cat(system.file(package='irace','bin',mustWork=TRUE))")/irace     --scenario iraceFolder/scenario.txt
-

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -55,7 +54,6 @@ public:
     const std::vector<int>& complementaryStops() const noexcept { return complementaryStops_; }
     TimeWindow windowForStop(int stopId) const { return windows_.at(stopId); }
     int maxRideTimeForStop(int stopId) const { return maxRideTimes_.at(stopId); }
-    TimeWindow aggregateWindow() const noexcept { return aggregateWindow_; }
 
     void setSide(WalkSide side) noexcept { side_ = side; }
     void setNearestStop(int stop) noexcept { nearestStop_ = stop; }
@@ -63,7 +61,6 @@ public:
     void setComplementaryStops(std::vector<int> stops) { complementaryStops_ = std::move(stops); }
     void setWindowForStop(int stopId, TimeWindow w) { windows_[stopId] = w; }
     void setMaxRideTimeForStop(int stopId, int maxRideTime) { maxRideTimes_[stopId] = maxRideTime; }
-    void setAggregateWindow(TimeWindow w) noexcept { aggregateWindow_ = w; }
 
 private:
     WalkSide side_ = WalkSide::None;
@@ -72,7 +69,6 @@ private:
     std::vector<int> complementaryStops_;
     std::unordered_map<int, TimeWindow> windows_;
     std::unordered_map<int, int> maxRideTimes_;
-    TimeWindow aggregateWindow_;
 };
 
 class Request {
@@ -92,9 +88,6 @@ public:
     const PtLegAccess& ptAccess() const noexcept { return ptAccess_; }
     WalkAccess& walkAccess() noexcept { return walkAccess_; }
     const WalkAccess& walkAccess() const noexcept { return walkAccess_; }
-
-    std::string toString() const;
-    void print() const;
 
 private:
     int pickupId_;

@@ -37,9 +37,7 @@ public:
 
     const Request& request(int idx) const { return requests_[idx]; }
     Request& request(int idx) { return requests_[idx]; }
-    const std::vector<Request>& requests() const noexcept { return requests_; }
 
-    const PointRegistry& pointRegistry() const noexcept { return registry_; }
     const TravelTimeProvider& travelTimes() const noexcept { return travelTimes_; }
 
     // Optional (-tram), before configurePublicTransport(): replaces the PT
@@ -70,16 +68,8 @@ public:
     // pair is among its candidates.
     StopPair stopPair(int req, int stopBefore, int stopAfter) const;
 
-    // In case of a transfer with a walking leg, the maximum ride time allowed
-    // for the vehicle leg opposite to the walk, when the vehicle serves PT stop
-    // stopId (one of walkAccess().complementaryStops()).
-    int maxRideTimeLegWithWalk(int req, int stopId) const;
-
     const std::vector<int>& relatedRequests(int req) const { return related_[req]; }
     const std::vector<int>& relatedRequestsWithTransfer(int req) const { return relatedWithTransfer_[req]; }
-
-    // Prints requests and general data. Deliberately omits the raw matrices.
-    void print() const;
 
 private:
     struct Header {

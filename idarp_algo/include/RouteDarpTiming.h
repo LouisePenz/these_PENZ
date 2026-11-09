@@ -62,7 +62,6 @@ public:
     RouteDarpTiming(const TravelTimeProvider& travelTimes, Inputs inputs);
     const Inputs& inputs() const noexcept { return inputs_; }
 
-    int nbNodes() const noexcept { return nbNodes_; }
     int earliest(int node) const { return earliest_[node]; }  // tau_i: as-early-as-possible schedule
     int latest(int node) const { return latest_[node]; }      // tau-bar_i: latest feasible service time
     int serviceTime(int node) const { return inputs_.serviceTime[node]; }

@@ -90,11 +90,6 @@ public:
     // if one of those sets has no feasible schedule.
     bool refreshTiming(const std::vector<int>& changedRoutes);
 
-    // Human-readable dump of the current state (routes, stops, transfers,
-    // unassigned requests) -- deliberately not the request/instance data
-    // already printed by Instance::print().
-    void print() const;
-
     // Writes the solution in a text format meant for other tools (main_LNS -sol), with the times of
     // `schedule` (route x position, e.g. from ridingTimeHeuristic). Times in the instance's unit.
     //   routes <nbRoutes>
@@ -114,16 +109,6 @@ public:
     // write() with that schedule into `path`. Returns false if the file can't be opened.
     bool writeFile(const std::string& path, const std::vector<std::string>& header);
 
-    // Validates internal invariants that a manual pointer/index bug would
-    // silently violate: Transfer entries reference the right roles/requests
-    // in the right order, every request is either unassigned or fully placed
-    // (never both, never partially), and no route exceeds its capacity.
-    // Prints every violation found to std::cerr and returns false if any was
-    // found -- meant to be called liberally during development, e.g. after
-    // every insert/remove, to catch a corruption right where it happens
-    // instead of a segfault dozens of iterations later.
-    bool checkConsistency() const;
-
     // The instance's objective (Instance::objective): routeTime() or ridingTimeHeuristic().
     void computeObjectiveFunction();
     // Sum of vehicle driving time on every route, depot-to-first-stop and
@@ -140,7 +125,6 @@ public:
     // schedule (so it is an upper bound, <= ridingTimeHeuristic). -1 if it can't be computed.
     double ridingTimeLp() const;
     int objectiveFunction() const noexcept { return objectiveFunction_; }
-    void setObjectiveFunction(int value) noexcept { objectiveFunction_ = value; }
 
     // Removes every RouteStop belonging to this request from whichever route(s)
     // it's in, drops its Transfer entry if any, and moves it to

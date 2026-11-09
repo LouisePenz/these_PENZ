@@ -63,16 +63,3 @@ ConfLNS::ConfLNS(const std::string& searchConfigFile, const std::string& instanc
     iterationLimit_ = instanceConfig.count("iteration_limit") ? std::stoi(instanceConfig.at("iteration_limit")) : 0;
     if (iterationLimit_ <= 0) iterationLimit_ = std::numeric_limits<int>::max();
 }
-
-std::string ConfLNS::toString() const {
-    std::string s = " The LNS is executed until " + std::to_string(timeLimit_);
-    s += " seconds or " + std::to_string(iterationLimit_) + " iterations.\n";
-    s += "At each iteration, between " + std::to_string(nbRequestsRemovedMin_);
-    s += " and " + std::to_string(nbRequestsRemovedMax_) + " requests are removed.\n";
-    return s;
-}
-
-std::ostream& operator<<(std::ostream& os, const ConfLNS& conf) {
-    os << conf.toString();
-    return os;
-}

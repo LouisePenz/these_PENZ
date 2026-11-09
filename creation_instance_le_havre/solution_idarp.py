@@ -38,7 +38,7 @@ def read(path):
         sol["riding_time_lp"] = float(sol["riding_time_lp"])
     nb_routes = int(rest[0])
     for _ in range(nb_routes):
-        _, r, n = next(lines).split()
+        _, _, n = next(lines).split()
         stops = []
         for _ in range(int(n)):
             role, req, point, time = next(lines).split()
@@ -78,7 +78,7 @@ def verify(sol, folder=INSTANCES_DIR):
     folder = Path(folder)
     name = sol["instance"][1:-4]   # i30_30_0.txt -> 30_30_0
     header, *reqs = (folder / sol["instance"]).read_text().strip().split("\n")
-    nb_req, _, nb_stops, capacity, horizon = map(int, header.split())
+    nb_req, _, _, capacity, horizon = map(int, header.split())
     reqs = [list(map(int, r.split())) for r in reqs]
     drive = np.loadtxt(folder / f"d{name}.txt", dtype=int)
     walk = np.loadtxt(folder / f"w{name}.txt", dtype=int)

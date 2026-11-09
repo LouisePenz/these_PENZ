@@ -46,12 +46,10 @@ struct RouteStop {
 // just this one).
 class Route {
 public:
-    Route(int vehicleId, int capacity, int depotPointId, int depotDeparture, int depotReturnDeadline);
+    Route(int capacity, int depotPointId, int depotReturnDeadline);
 
-    int vehicleId() const noexcept { return vehicleId_; }
     int capacity() const noexcept { return capacity_; }
     int depotPointId() const noexcept { return depotPointId_; }
-    int depotDeparture() const noexcept { return depotDeparture_; }
     int depotReturnDeadline() const noexcept { return depotReturnDeadline_; }
 
     int size() const noexcept { return static_cast<int>(stops_.size()); }
@@ -79,16 +77,13 @@ public:
     // position_in_route across all routes at once, an easy source of
     // confusion between routes).
     void recomputeLoad();
-    int loadAfter(int position) const;
     // True if the vehicle has enough free capacity to carry `extraLoad`
     // additional units from just after posFrom to just after posTo (inclusive).
     bool hasFreeCapacity(int posFrom, int posTo, int extraLoad) const;
 
 private:
-    int vehicleId_;
     int capacity_;
     int depotPointId_;
-    int depotDeparture_;
     int depotReturnDeadline_;
 
     std::vector<RouteStop> stops_;

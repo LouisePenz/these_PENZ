@@ -187,7 +187,6 @@ void Instance::computeWalkData(int maxStops) {
                       [](const auto& a, const auto& b) { return a.second < b.second; });
             // Keep (up to) the maxStops closest stops whose derived window isn't empty.
             std::vector<int> selected;
-            TimeWindow aggregate{horizonTime_, 0};
             for (size_t i = 0; i < stopsAfterWalk.size() && static_cast<int>(selected.size()) < maxStops; ++i) {
                 int s = stopsAfterWalk[i].first;
                 int pt = travelTimes_.publicTransportTime(nearestStopForPickup, s);
@@ -214,8 +213,6 @@ void Instance::computeWalkData(int maxStops) {
                 selected.push_back(s);
                 r.walkAccess().setWindowForStop(s, w);
                 r.walkAccess().setMaxRideTimeForStop(s, r.maxRideTime() - walk - pt);
-                if (w.lowerBound < aggregate.lowerBound) aggregate.lowerBound = w.lowerBound;
-                if (w.upperBound > aggregate.upperBound) aggregate.upperBound = w.upperBound;
             }
             if (selected.empty()) {
                 r.walkAccess().setSide(WalkSide::None);
@@ -224,7 +221,6 @@ void Instance::computeWalkData(int maxStops) {
             r.walkAccess().setNearestStop(nearestStopForPickup);
             r.walkAccess().setWalkTime(walk);
             r.walkAccess().setSide(WalkSide::AtPickup);
-            r.walkAccess().setAggregateWindow(aggregate);
             r.walkAccess().setComplementaryStops(selected);
         } else if (timeFromDeliveryToNearestStop <= threshold) {
             // pickup --(vehicle)--> s --(PT)--> nearestStopForDelivery --(walk)--> delivery
@@ -244,7 +240,6 @@ void Instance::computeWalkData(int maxStops) {
                       [](const auto& a, const auto& b) { return a.second < b.second; });
             // Keep (up to) the maxStops closest stops whose derived window isn't empty.
             std::vector<int> selected;
-            TimeWindow aggregate{horizonTime_, 0};
             for (size_t i = 0; i < stopsBeforeWalk.size() && static_cast<int>(selected.size()) < maxStops; ++i) {
                 int s = stopsBeforeWalk[i].first;
                 int pt = travelTimes_.publicTransportTime(s, nearestStopForDelivery);
@@ -273,8 +268,6 @@ void Instance::computeWalkData(int maxStops) {
                 selected.push_back(s);
                 r.walkAccess().setWindowForStop(s, w);
                 r.walkAccess().setMaxRideTimeForStop(s, r.maxRideTime() - r.loadingTime() - pt - walk);
-                if (w.lowerBound < aggregate.lowerBound) aggregate.lowerBound = w.lowerBound;
-                if (w.upperBound > aggregate.upperBound) aggregate.upperBound = w.upperBound;
             }
             if (selected.empty()) {
                 r.walkAccess().setSide(WalkSide::None);
@@ -283,18 +276,11 @@ void Instance::computeWalkData(int maxStops) {
             r.walkAccess().setNearestStop(nearestStopForDelivery);
             r.walkAccess().setWalkTime(timeFromDeliveryToNearestStop);
             r.walkAccess().setSide(WalkSide::AtDelivery);
-            r.walkAccess().setAggregateWindow(aggregate);
             r.walkAccess().setComplementaryStops(selected);
         } else {
             r.walkAccess().setSide(WalkSide::None);
         }
     }
-}
-
-int Instance::maxRideTimeLegWithWalk(int req, int stopId) const {
-    const Request& r = requests_[req];
-    if (!r.walkAccess().available()) return -1;
-    return r.walkAccess().maxRideTimeForStop(stopId);
 }
 
 void Instance::computeRelatedness() {
@@ -382,19 +368,5 @@ void Instance::computeRelatednessWithTransfer() {
         ordered.reserve(scored.size());
         for (auto& p : scored) ordered.push_back(p.second);
         relatedWithTransfer_.push_back(std::move(ordered));
-    }
-}
-
-void Instance::print() const {
-    std::cout << "There are " << nbVehicles_ << " vehicles, capacity " << capacity_ << "\n";
-    std::cout << "There are " << registry_.nbStops() << " stops.\n";
-    std::cout << "Horizon time is " << horizonTime_ << "\n";
-    std::cout << "The average waiting time at stops is " << travelTimes_.waitingTime() << "\n";
-    std::cout << "Minimum time to pass in public transportation is " << travelTimes_.minimumTimeInTransit() << "\n";
-    std::cout << "The maximum walk time is " << travelTimes_.walkThreshold() << "\n";
-    std::cout << "There are " << nbRequests() << " requests.\n";
-    for (int req = 0; req < nbRequests(); ++req) {
-        std::cout << "Request index " << req << ":\n";
-        requests_[req].print();
     }
 }

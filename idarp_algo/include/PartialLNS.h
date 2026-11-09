@@ -32,8 +32,6 @@ public:
     // (which may still have unassigned requests if time ran out first).
     Solution compute(const Instance& instance, int noImprovementLimit = 50, int timeLimit=-1);
 
-    int lastIteration() const noexcept { return iteration_; }
-
 private:
     Destroyer& pickDestroyer();
     Repairer& pickRepairer();
@@ -44,5 +42,4 @@ private:
     std::vector<std::unique_ptr<Repairer>> repairers_;
     long long unassignedWeight_ = 0;
 
-    int iteration_ = 0;
 };

@@ -36,7 +36,6 @@ Solution PartialLNS::compute(const Instance& instance, int noImprovementLimit, i
     if (removeMax < removeMin) removeMax = removeMin;
 
     int iterationsSinceChange = 0;
-    iteration_ = 0;
 
     TimePoint start = now();
     while (secondsSince(start) < timeLimit && !best.unassignedRequests().empty()) {
@@ -61,7 +60,6 @@ Solution PartialLNS::compute(const Instance& instance, int noImprovementLimit, i
             iterationsSinceChange = 0;
         }
 
-        ++iteration_;
     }
 
     return best;

@@ -42,7 +42,6 @@ Solution LNS::compute(const Solution& sInit, int timeLimit) {
     int nbIterationsAccepted = 0;
     int nbIterationsFeasible = 0;
     iteration_ = 0;
-    lastChangeIteration_ = 0;
     if(timeLimit == -1)
         timeLimit = conf_->timeLimit();
 
@@ -66,7 +65,6 @@ Solution LNS::compute(const Solution& sInit, int timeLimit) {
             // (f(trial) - f(best)) / f(trial) < threshold.
             if (trial.objectiveFunction() - best.objectiveFunction() < threshold * trial.objectiveFunction()) {
                 ++nbIterationsAccepted;
-                lastChangeIteration_ = iteration_;
                 current = trial;
                 if (current.objectiveFunction() <= best.objectiveFunction()) {
                     best = current;

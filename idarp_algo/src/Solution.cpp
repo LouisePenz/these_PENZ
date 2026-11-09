@@ -14,15 +14,6 @@
 #include "RouteDarpTiming.h"
 
 namespace {
-const char* roleName(StopRole role) {
-    switch (role) {
-        case StopRole::Pickup: return "Pickup";
-        case StopRole::Delivery: return "Delivery";
-        case StopRole::StopBefore: return "StopBefore";
-        case StopRole::StopAfter: return "StopAfter";
-    }
-    return "?";
-}
 
 // Where one request's stops are in the STP graph being built (see
 // Solution::buildDarpGraph): node and stop for each role, absent if null.
@@ -41,7 +32,7 @@ Solution::Solution(const Instance& instance) : instance_(&instance) {
     routes_.reserve(instance.nbVehicles());
     for (int v = 0; v < instance.nbVehicles(); ++v) {
         // Every vehicle departs the depot at time 0 and must be back by the horizon.
-        routes_.emplace_back(v, instance.capacity(), PointRegistry::depot, 0, instance.horizonTime());
+        routes_.emplace_back(instance.capacity(), PointRegistry::depot, instance.horizonTime());
     }
     unassignedRequests_.reserve(instance.nbRequests());
     for (int r = 0; r < instance.nbRequests(); ++r) unassignedRequests_.push_back(r);
@@ -416,39 +407,6 @@ bool Solution::propagateBackwardDarp() {
     return propagateBackwardDarp(allRoutes);
 }
 
-void Solution::print() const {
-    std::cout << "Solution with " << nbRoutes() << " routes, " << unassignedRequests_.size()
-              << " unassigned request(s), " << transfers_.size() << " transfer(s).\n";
-
-    for (int r = 0; r < nbRoutes(); ++r) {
-        const Route& route = routes_[r];
-        std::cout << "Route " << r << " (vehicle " << route.vehicleId() << ", capacity " << route.capacity()
-                  << "), " << route.size() << " stop(s):\n";
-        for (int i = 0; i < route.size(); ++i) {
-            const RouteStop& s = route.stopAt(i);
-            std::cout << "   [" << i << "] " << roleName(s.role) << " req=" << s.requestId
-                      << " leg=" << s.legIndex << " point=" << s.pointId << " window=[" << s.windowLtw << ";"
-                      << s.windowUtw << "] ltwDarp=" << s.ltwDarp << "\n";
-        }
-    }
-
-    if (!unassignedRequests_.empty()) {
-        std::cout << "Unassigned requests: ";
-        for (int r : unassignedRequests_) std::cout << r << " ";
-        std::cout << "\n";
-    }
-
-    if (!transfers_.empty()) {
-        std::cout << "Transfers:\n";
-        for (const Transfer& t : transfers_) {
-            std::cout << "   req=" << t.requestId << " route " << t.routeBefore << " (pickup@"
-                      << t.posPickup << ", stopBefore@" << t.posStopBefore << ") -> route " << t.routeAfter
-                      << " (stopAfter@" << t.posStopAfter << ", delivery@" << t.posDelivery
-                      << "), ptTravelTime=" << t.ptTravelTime << "\n";
-        }
-    }
-}
-
 void Solution::write(std::ostream& out, const std::vector<std::vector<int>>& schedule) const {
     const TravelTimeProvider& tt = instance_->travelTimes();
     struct Placed {
@@ -536,97 +494,6 @@ bool Solution::writeFile(const std::string& path, const std::vector<std::string>
          << "riding_time_lp " << ridingTimeLp() << "\n";
     write(file, schedule);
     return true;
-}
-
-bool Solution::checkConsistency() const {
-    bool ok = true;
-    auto report = [&ok](const std::string& message) {
-        std::cerr << "[checkConsistency] " << message << "\n";
-        ok = false;
-    };
-
-    // Every Transfer must reference two valid routes and the right role/request
-    // at the right position, in the right order within each route.
-    for (const Transfer& t : transfers_) {
-        if (t.routeBefore < 0 || t.routeBefore >= nbRoutes() || t.routeAfter < 0 || t.routeAfter >= nbRoutes()) {
-            report("Transfer for request " + std::to_string(t.requestId) + " references an out-of-range route");
-            continue;
-        }
-        const Route& before = routes_[t.routeBefore];
-        const Route& after = routes_[t.routeAfter];
-        if (t.posPickup < 0 || t.posPickup >= before.size() || t.posStopBefore < 0 ||
-            t.posStopBefore >= before.size() || t.posStopAfter < 0 || t.posStopAfter >= after.size() ||
-            t.posDelivery < 0 || t.posDelivery >= after.size()) {
-            report("Transfer for request " + std::to_string(t.requestId) + " references an out-of-range position");
-            continue;
-        }
-        if (before.stopAt(t.posPickup).role != StopRole::Pickup || before.stopAt(t.posPickup).requestId != t.requestId)
-            report("Transfer for request " + std::to_string(t.requestId) + ": posPickup is not that request's Pickup");
-        if (before.stopAt(t.posStopBefore).role != StopRole::StopBefore ||
-            before.stopAt(t.posStopBefore).requestId != t.requestId)
-            report("Transfer for request " + std::to_string(t.requestId) + ": posStopBefore is not that request's StopBefore");
-        if (after.stopAt(t.posStopAfter).role != StopRole::StopAfter ||
-            after.stopAt(t.posStopAfter).requestId != t.requestId)
-            report("Transfer for request " + std::to_string(t.requestId) + ": posStopAfter is not that request's StopAfter");
-        if (after.stopAt(t.posDelivery).role != StopRole::Delivery || after.stopAt(t.posDelivery).requestId != t.requestId)
-            report("Transfer for request " + std::to_string(t.requestId) + ": posDelivery is not that request's Delivery");
-        if (t.posPickup >= t.posStopBefore)
-            report("Transfer for request " + std::to_string(t.requestId) + ": pickup does not precede stopBefore in its route");
-        if (t.posStopAfter >= t.posDelivery)
-            report("Transfer for request " + std::to_string(t.requestId) + ": stopAfter does not precede delivery in its route");
-    }
-
-    // Every request must be either unassigned, or fully and consistently placed
-    // (never both, never a partial/duplicated set of roles).
-    std::unordered_map<int, std::vector<StopRole>> rolesByRequest;
-    for (const Route& route : routes_) {
-        for (int i = 0; i < route.size(); ++i) {
-            const RouteStop& s = route.stopAt(i);
-            rolesByRequest[s.requestId].push_back(s.role);
-        }
-    }
-    std::unordered_set<int> unassignedSet(unassignedRequests_.begin(), unassignedRequests_.end());
-
-    for (const auto& [reqId, roles] : rolesByRequest) {
-        if (unassignedSet.count(reqId)) {
-            report("Request " + std::to_string(reqId) + " is both placed in a route and marked unassigned");
-        }
-        std::vector<StopRole> sorted = roles;
-        std::sort(sorted.begin(), sorted.end());
-        bool isDirect = sorted == std::vector<StopRole>{StopRole::Pickup, StopRole::Delivery};
-        bool isWalkAtPickup = sorted == std::vector<StopRole>{StopRole::Delivery, StopRole::StopAfter};
-        bool isWalkAtDelivery = sorted == std::vector<StopRole>{StopRole::Pickup, StopRole::StopBefore};
-        bool isTransfer =
-            sorted == std::vector<StopRole>{StopRole::Pickup, StopRole::Delivery, StopRole::StopBefore, StopRole::StopAfter};
-        if (!isDirect && !isWalkAtPickup && !isWalkAtDelivery && !isTransfer) {
-            report("Request " + std::to_string(reqId) + " has an inconsistent set of stops (" +
-                   std::to_string(roles.size()) + " role(s))");
-        }
-        if (isTransfer) {
-            bool hasTransferRecord = std::any_of(transfers_.begin(), transfers_.end(),
-                                                  [reqId = reqId](const Transfer& t) { return t.requestId == reqId; });
-            if (!hasTransferRecord)
-                report("Request " + std::to_string(reqId) + " has both vehicle legs in routes but no Transfer entry");
-        }
-    }
-    for (int reqId : unassignedRequests_) {
-        if (rolesByRequest.count(reqId))
-            report("Request " + std::to_string(reqId) + " is marked unassigned but also present in a route");
-    }
-
-    // Capacity must never be exceeded anywhere in a route.
-    for (int r = 0; r < nbRoutes(); ++r) {
-        Route& route = const_cast<Route&>(routes_[r]);
-        route.recomputeLoad();
-        for (int i = 0; i < route.size(); ++i) {
-            if (route.loadAfter(i) > route.capacity() || route.loadAfter(i) < 0) {
-                report("Route " + std::to_string(r) + " has an invalid load (" + std::to_string(route.loadAfter(i)) +
-                       ") after position " + std::to_string(i));
-            }
-        }
-    }
-
-    return ok;
 }
 
 void Solution::computeObjectiveFunction() {

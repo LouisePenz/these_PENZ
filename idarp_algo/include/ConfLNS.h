@@ -1,31 +1,12 @@
 #pragma once
 
-#include <iosfwd>
 #include <string>
-
-enum class DestructionOperator {
-    RandomRemoval,
-    RelatedRemoval,
-    WorstRemoval,
-    RouteRemoval,
-    ClusterRemoval,
-    SeparateSelectionRemoval
-};
-
-enum class RepairOperator {
-    RandomRepair,
-    GreedyRepair,
-    RegretRepair,
-    ForceTransferRepair
-};
 
 // Loads LNS search parameters and instance-related runtime parameters from two
 // key:value configuration files.
 class ConfLNS {
 public:
     ConfLNS(const std::string& searchConfigFile, const std::string& instanceConfigFile);
-
-    std::string toString() const;
 
     int timeLimit() const noexcept { return timeLimit_; }
     int iterationLimit() const noexcept { return iterationLimit_; }
@@ -77,5 +58,3 @@ private:
     int minimumTimeInTransit_ = 0;
     int waitingTime_ = 0;
 };
-
-std::ostream& operator<<(std::ostream& os, const ConfLNS& conf);
